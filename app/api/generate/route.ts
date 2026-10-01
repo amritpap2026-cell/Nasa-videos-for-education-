@@ -54,10 +54,43 @@ function createFallbackTopics(topic: string, language: string) {
   ]
 }
 
-function createFallbackPackage(topic: string, language: string) {
-  const safeTopic = topic.trim()
-  const languageNote = language === "English" ? "" : ` Write the package in ${language}.`
-  return `TITLE: ${safeTopic} | A NASA Space Story Explained\n\nDESCRIPTION: Explore ${safeTopic} with Cosmos, an independent space education channel. In this episode, we explain the science, mission context, discoveries, and why this topic matters for humanity in clear, student-friendly language. This educational video is not affiliated with or endorsed by NASA.\n\nTAGS: NASA, space exploration, astronomy, cosmos, science education, ${safeTopic}\n\nSEO KEYWORDS: ${safeTopic}, NASA education, space science, astronomy explained, universe facts\n\nVIDEO OUTLINE:\n1. Hook: What makes ${safeTopic} fascinating?\n2. Explore the science, mission, and latest known context.\n3. Close with learning takeaways and ways students can explore space science.${languageNote}`
+async function createFallbackPackage(topic: string, language: string, length: string) {
+  const safeTopic = topic.trim() || "NASA and space exploration"
+  const languageNote = language === "English" ? "" : `\nLANGUAGE NOTE: Write narration and on-screen text in ${language}.`
+  let styleGuide = ""
+  try {
+    const response = await fetch(masterPromptUrl, { signal: AbortSignal.timeout(8_000), cache: "no-store" })
+    if (response.ok) styleGuide = await response.text()
+  } catch {
+    // The local structure below remains available when GitHub is unreachable.
+  }
+
+  const guideSections = [...styleGuide.matchAll(/^#{1,3}\\s+(.+)$/gm)]
+    .map((match) => match[1].trim())
+    .filter(Boolean)
+    .slice(0, 12)
+  const sectionNote = guideSections.length
+    ? `\\nMASTER PROMPT SECTIONS APPLIED: ${guideSections.join(" | ")}`
+    : "\\nMASTER PROMPT STYLE APPLIED: hook, educational clarity, SEO metadata, responsible NASA context, and duration-matched outline."
+
+  return `TITLE: ${safeTopic} | The NASA Story You Need to Know
+
+DESCRIPTION: Discover ${safeTopic} through clear, accurate space education. This episode explains the science, evidence, mission context, and why this topic matters for our shared future. Created for curious learners by Cosmos, an independent educational channel. This video is not affiliated with or endorsed by NASA.
+
+TAGS: NASA, ${safeTopic}, space exploration, astronomy, cosmos, science education, universe, STEM, space explained
+
+SEO KEYWORDS: ${safeTopic}, NASA education, space science, astronomy explained, universe facts, STEM learning
+
+VIDEO LENGTH: ${length} minutes
+
+VIDEO OUTLINE:
+00:00 Hook: Why should we care about ${safeTopic}?
+01:00 The big question and essential context
+03:00 Science, evidence, and what NASA has learned
+06:00 What this means for Earth and future exploration
+08:00 Key takeaways and invitation to keep learning
+
+CALL TO ACTION: Subscribe for accurate, inspiring NASA and space education in English, Hindi, and Nepali. Share this episode with a curious learner.${languageNote}${sectionNote}`
 }
 
 export async function POST(request: Request) {
@@ -92,8 +125,8 @@ export async function POST(request: Request) {
     }
 
     if (topic.trim().length < 3) return NextResponse.json({ error: "Please enter a topic with at least 3 characters." }, { status: 400 })
-    if (!key) return NextResponse.json({ text: createFallbackPackage(topic, normalizedLanguage), model: "fallback" })
     const selectedLength = ["0-5", "0-10", "0-15", "0-30", "0-60"].includes(length) ? length : "0-10"
+    if (!key) return NextResponse.json({ text: await createFallbackPackage(topic, normalizedLanguage, selectedLength), model: "local master-prompt fallback" })
     let masterPrompt = ""
     try {
       const promptResponse = await fetch(masterPromptUrl, { signal: AbortSignal.timeout(8_000), next: { revalidate: 3600 } })
@@ -132,7 +165,7 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({
-      text: createFallbackPackage(topic, language),
+      text: await createFallbackPackage(topic, normalizedLanguage, selectedLength),
       model: "fallback",
       notice: "Gemini models were unavailable. This package was created locally.",
     })
