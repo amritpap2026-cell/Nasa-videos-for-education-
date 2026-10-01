@@ -1,6 +1,57 @@
 import { NextResponse } from "next/server"
 
-const models = ["gemini-2.0-flash", "gemini-1.5-flash"]
+const preferredModels = [
+  "gemini-2.5-flash-lite",
+  "gemini-2.5-flash",
+  "gemini-2.0-flash",
+  "gemini-1.5-flash",
+]
+
+const requestTimeoutMs = 25_000
+
+async function getAvailableModels(key: string) {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), requestTimeoutMs)
+  try {
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(key)}`,
+      { signal: controller.signal, cache: "no-store" },
+    )
+    if (!response.ok) return preferredModels
+    const data = await response.json()
+    const available = Array.isArray(data?.models)
+      ? data.models
+          .filter(
+            (model: { name?: string; supportedGenerationMethods?: string[] }) =>
+              model.name?.startsWith("models/gemini-") &&
+              model.supportedGenerationMethods?.includes("generateContent"),
+          )
+          .map((model: { name: string }) => model.name.replace("models/", ""))
+      : []
+
+    const preferred = preferredModels.filter((model) => available.includes(model))
+    return [...preferred, ...available.filter((model: string) => !preferred.includes(model))]
+  } catch {
+    return preferredModels
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
+function createFallbackTopics(topic: string, language: string) {
+  const subject = topic.trim() || "NASA and space exploration"
+  const languageLabel = language === "English" ? "" : ` (${language})`
+  return [
+    `What NASA just discovered about ${subject}`,
+    `${subject}: the space mystery scientists still cannot explain`,
+    `The hidden science behind ${subject}`,
+    `Could ${subject} change life on Earth?`,
+    `NASA's most surprising facts about ${subject}`,
+    `${subject} explained in 10 minutes for curious minds`,
+    `The future of ${subject} and humanity's next giant leap`,
+    `What students should know about ${subject}${languageLabel}`,
+  ]
+}
 
 function createFallbackPackage(topic: string, language: string) {
   const safeTopic = topic.trim()
@@ -10,15 +61,73 @@ function createFallbackPackage(topic: string, language: string) {
 
 export async function POST(request: Request) {
   try {
-    const { topic, language = "English" } = await request.json()
-    if (typeof topic !== "string" || topic.trim().length < 3 || topic.length > 300) return NextResponse.json({ error: "Please enter a topic between 3 and 300 characters." }, { status: 400 })
-    const key = process.env.GEMINI_API_KEY
-    if (!key) return NextResponse.json({ text: createFallbackPackage(topic, language), model: "fallback" })
-    const prompt = `You are a NASA space education producer. Create a YouTube package in ${language} for the topic: ${topic.trim()}. Return clear sections: TITLE, DESCRIPTION, TAGS, SEO KEYWORDS, and a 3-part VIDEO OUTLINE. Be accurate, inspiring, accessible to students, and never claim NASA endorsement.`
-    for (const model of models) {
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.7, maxOutputTokens: 1200 } }) })
-      if (response.ok) { const data = await response.json(); const text = data?.candidates?.[0]?.content?.parts?.[0]?.text; if (text) return NextResponse.json({ text, model }) }
+    const { topic, language = "English", mode = "package" } = await request.json()
+    if (typeof topic !== "string" || topic.length > 300) return NextResponse.json({ error: "Please enter a topic no longer than 300 characters." }, { status: 400 })
+    const normalizedLanguage = ["English", "Hindi", "Nepali"].includes(language) ? language : "English"
+    const key = (process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY || "").trim()
+
+    if (mode === "brainstorm") {
+      if (topic.trim().length < 2) return NextResponse.json({ error: "Enter a few words so we can brainstorm around them." }, { status: 400 })
+      if (!key) return NextResponse.json({ topics: createFallbackTopics(topic, normalizedLanguage), model: "free brainstorm fallback" })
+      const brainstormPrompt = `You are a brilliant YouTube trend researcher and producer for a NASA space education channel. Based on the seed ${topic.trim()}, brainstorm 8 catchy, intelligent, curiosity-driven video topic titles inspired by the kinds of hooks, questions, comparisons, mysteries, and explainers that perform well in educational YouTube search. Do not claim you searched live YouTube data. Make every title accurate, educational, emotionally compelling, distinct, and suitable for ${normalizedLanguage}. Return only a numbered list of 8 titles, one per line, with no introduction.`
+      const models = await getAvailableModels(key)
+      for (const model of models) {
+        const controller = new AbortController()
+        const timeout = setTimeout(() => controller.abort(), requestTimeoutMs)
+        try {
+          const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contents: [{ parts: [{ text: brainstormPrompt }] }], generationConfig: { temperature: 0.9, maxOutputTokens: 700 } }), signal: controller.signal })
+          if (!response.ok) continue
+          const data = await response.json()
+          const generated = data?.candidates?.[0]?.content?.parts?.[0]?.text
+          const topics = typeof generated === "string" ? generated.split("\n").map((line: string) => line.replace(/^\s*\d+[.)-]\s*/, "").trim()).filter((line: string) => line.length >= 8 && line.length <= 180).slice(0, 10) : []
+          if (topics.length >= 5) return NextResponse.json({ topics, model })
+        } catch {
+          // Continue through free Gemini models before using the local brainstorm.
+        } finally {
+          clearTimeout(timeout)
+        }
+      }
+      return NextResponse.json({ topics: createFallbackTopics(topic, normalizedLanguage), model: "free brainstorm fallback" })
     }
-    return NextResponse.json({ text: createFallbackPackage(topic, language), model: "fallback" })
-  } catch { return NextResponse.json({ error: "Invalid request. Please try again." }, { status: 400 }) }
+
+    if (topic.trim().length < 3) return NextResponse.json({ error: "Please enter a topic with at least 3 characters." }, { status: 400 })
+    if (!key) return NextResponse.json({ text: createFallbackPackage(topic, normalizedLanguage), model: "fallback" })
+    const prompt = `You are a NASA space education producer. Create a YouTube package in ${normalizedLanguage} for the topic: ${topic.trim()}. Return clear sections: TITLE, DESCRIPTION, TAGS, SEO KEYWORDS, and a 3-part VIDEO OUTLINE. Be accurate, inspiring, accessible to students, and never claim NASA endorsement.`
+    const models = await getAvailableModels(key)
+
+    for (const model of models) {
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), requestTimeoutMs)
+      try {
+        const response = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: prompt }] }],
+              generationConfig: { temperature: 0.7, maxOutputTokens: 1200 },
+            }),
+            signal: controller.signal,
+          },
+        )
+        if (!response.ok) continue
+        const data = await response.json()
+        const text = data?.candidates?.[0]?.content?.parts?.[0]?.text
+        if (typeof text === "string" && text.trim()) return NextResponse.json({ text, model })
+      } catch {
+        // Try the next free model when a model is unavailable or times out.
+      } finally {
+        clearTimeout(timeout)
+      }
+    }
+
+    return NextResponse.json({
+      text: createFallbackPackage(topic, language),
+      model: "fallback",
+      notice: "Gemini models were unavailable. This package was created locally.",
+    })
+  } catch {
+    return NextResponse.json({ error: "Invalid request. Please try again." }, { status: 400 })
+  }
 }
