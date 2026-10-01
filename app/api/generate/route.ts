@@ -8,6 +8,7 @@ const preferredModels = [
 ]
 
 const requestTimeoutMs = 25_000
+const masterPromptUrl = "https://raw.githubusercontent.com/amritpap2026-cell/Nasa-videos-for-education-/main/universal_youtube_master_prompt.txt"
 
 async function getAvailableModels(key: string) {
   const controller = new AbortController()
@@ -61,7 +62,7 @@ function createFallbackPackage(topic: string, language: string) {
 
 export async function POST(request: Request) {
   try {
-    const { topic, language = "English", mode = "package" } = await request.json()
+    const { topic, language = "English", length = "0-10", mode = "package" } = await request.json()
     if (typeof topic !== "string" || topic.length > 300) return NextResponse.json({ error: "Please enter a topic no longer than 300 characters." }, { status: 400 })
     const normalizedLanguage = ["English", "Hindi", "Nepali"].includes(language) ? language : "English"
     const key = (process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY || "").trim()
@@ -69,7 +70,7 @@ export async function POST(request: Request) {
     if (mode === "brainstorm") {
       if (topic.trim().length < 2) return NextResponse.json({ error: "Enter a few words so we can brainstorm around them." }, { status: 400 })
       if (!key) return NextResponse.json({ topics: createFallbackTopics(topic, normalizedLanguage), model: "free brainstorm fallback" })
-      const brainstormPrompt = `You are a brilliant YouTube trend researcher and producer for a NASA space education channel. Based on the seed ${topic.trim()}, brainstorm 8 catchy, intelligent, curiosity-driven video topic titles inspired by the kinds of hooks, questions, comparisons, mysteries, and explainers that perform well in educational YouTube search. Do not claim you searched live YouTube data. Make every title accurate, educational, emotionally compelling, distinct, and suitable for ${normalizedLanguage}. Return only a numbered list of 8 titles, one per line, with no introduction.`
+      const brainstormPrompt = `You are a brilliant YouTube trend researcher and producer for a NASA space education channel. Based on the seed ${topic.trim()}, brainstorm 8 catchy, intelligent, curiosity-driven video topic titles by analyzing common competitor-style hooks, questions, comparisons, mysteries, and explainers that perform well in educational YouTube search. This is a search-style brainstorm, not live YouTube results; do not claim you searched live YouTube data. Make every title accurate, educational, emotionally compelling, distinct, and suitable for ${normalizedLanguage}. Return only a numbered list of 8 titles, one per line, with no introduction.`
       const models = await getAvailableModels(key)
       for (const model of models) {
         const controller = new AbortController()
@@ -92,7 +93,15 @@ export async function POST(request: Request) {
 
     if (topic.trim().length < 3) return NextResponse.json({ error: "Please enter a topic with at least 3 characters." }, { status: 400 })
     if (!key) return NextResponse.json({ text: createFallbackPackage(topic, normalizedLanguage), model: "fallback" })
-    const prompt = `You are a NASA space education producer. Create a YouTube package in ${normalizedLanguage} for the topic: ${topic.trim()}. Return clear sections: TITLE, DESCRIPTION, TAGS, SEO KEYWORDS, and a 3-part VIDEO OUTLINE. Be accurate, inspiring, accessible to students, and never claim NASA endorsement.`
+    const selectedLength = ["0-5", "0-10", "0-15", "0-30", "0-60"].includes(length) ? length : "0-10"
+    let masterPrompt = ""
+    try {
+      const promptResponse = await fetch(masterPromptUrl, { signal: AbortSignal.timeout(8_000), next: { revalidate: 3600 } })
+      if (promptResponse.ok) masterPrompt = await promptResponse.text()
+    } catch {
+      // The concise prompt below remains available when GitHub is unreachable.
+    }
+    const prompt = `${masterPrompt}\n\nCreate the complete YouTube package for this NASA space education channel. Topic: ${topic.trim()}. Language: ${normalizedLanguage}. Desired video length: ${selectedLength} minutes. Return the most useful production-ready sections from the master prompt, including TITLE, DESCRIPTION, TAGS, SEO KEYWORDS, and a timestamped VIDEO OUTLINE. Be accurate, inspiring, accessible to students, and never claim NASA endorsement.`
     const models = await getAvailableModels(key)
 
     for (const model of models) {
