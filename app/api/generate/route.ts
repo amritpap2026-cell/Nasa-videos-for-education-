@@ -48,8 +48,9 @@ export async function POST(request: Request) {
   try {
     const { topic, language = "English" } = await request.json()
     if (typeof topic !== "string" || topic.trim().length < 3 || topic.length > 300) return NextResponse.json({ error: "Please enter a topic between 3 and 300 characters." }, { status: 400 })
-    const key = process.env.GEMINI_API_KEY
-    if (!key) return NextResponse.json({ text: createFallbackPackage(topic, language), model: "fallback" })
+    const key = (process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY || "").trim()
+    const normalizedLanguage = ["English", "Hindi", "Nepali"].includes(language) ? language : "English"
+    if (!key) return NextResponse.json({ text: createFallbackPackage(topic, normalizedLanguage), model: "fallback" })
     const prompt = `You are a NASA space education producer. Create a YouTube package in ${language} for the topic: ${topic.trim()}. Return clear sections: TITLE, DESCRIPTION, TAGS, SEO KEYWORDS, and a 3-part VIDEO OUTLINE. Be accurate, inspiring, accessible to students, and never claim NASA endorsement.`
     const models = await getAvailableModels(key)
 
