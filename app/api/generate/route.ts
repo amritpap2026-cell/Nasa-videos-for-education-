@@ -1,6 +1,42 @@
 import { NextResponse } from "next/server"
 
-const models = ["gemini-2.0-flash", "gemini-1.5-flash"]
+const preferredModels = [
+  "gemini-2.5-flash-lite",
+  "gemini-2.5-flash",
+  "gemini-2.0-flash",
+  "gemini-1.5-flash",
+]
+
+const requestTimeoutMs = 25_000
+
+async function getAvailableModels(key: string) {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), requestTimeoutMs)
+  try {
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(key)}`,
+      { signal: controller.signal, cache: "no-store" },
+    )
+    if (!response.ok) return preferredModels
+    const data = await response.json()
+    const available = Array.isArray(data?.models)
+      ? data.models
+          .filter(
+            (model: { name?: string; supportedGenerationMethods?: string[] }) =>
+              model.name?.startsWith("models/gemini-") &&
+              model.supportedGenerationMethods?.includes("generateContent"),
+          )
+          .map((model: { name: string }) => model.name.replace("models/", ""))
+      : []
+
+    const preferred = preferredModels.filter((model) => available.includes(model))
+    return [...preferred, ...available.filter((model: string) => !preferred.includes(model))]
+  } catch {
+    return preferredModels
+  } finally {
+    clearTimeout(timeout)
+  }
+}
 
 function createFallbackPackage(topic: string, language: string) {
   const safeTopic = topic.trim()
@@ -15,10 +51,41 @@ export async function POST(request: Request) {
     const key = process.env.GEMINI_API_KEY
     if (!key) return NextResponse.json({ text: createFallbackPackage(topic, language), model: "fallback" })
     const prompt = `You are a NASA space education producer. Create a YouTube package in ${language} for the topic: ${topic.trim()}. Return clear sections: TITLE, DESCRIPTION, TAGS, SEO KEYWORDS, and a 3-part VIDEO OUTLINE. Be accurate, inspiring, accessible to students, and never claim NASA endorsement.`
+    const models = await getAvailableModels(key)
+
     for (const model of models) {
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.7, maxOutputTokens: 1200 } }) })
-      if (response.ok) { const data = await response.json(); const text = data?.candidates?.[0]?.content?.parts?.[0]?.text; if (text) return NextResponse.json({ text, model }) }
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), requestTimeoutMs)
+      try {
+        const response = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: prompt }] }],
+              generationConfig: { temperature: 0.7, maxOutputTokens: 1200 },
+            }),
+            signal: controller.signal,
+          },
+        )
+        if (!response.ok) continue
+        const data = await response.json()
+        const text = data?.candidates?.[0]?.content?.parts?.[0]?.text
+        if (typeof text === "string" && text.trim()) return NextResponse.json({ text, model })
+      } catch {
+        // Try the next free model when a model is unavailable or times out.
+      } finally {
+        clearTimeout(timeout)
+      }
     }
-    return NextResponse.json({ text: createFallbackPackage(topic, language), model: "fallback" })
-  } catch { return NextResponse.json({ error: "Invalid request. Please try again." }, { status: 400 }) }
+
+    return NextResponse.json({
+      text: createFallbackPackage(topic, language),
+      model: "fallback",
+      notice: "Gemini models were unavailable. This package was created locally.",
+    })
+  } catch {
+    return NextResponse.json({ error: "Invalid request. Please try again." }, { status: 400 })
+  }
 }
