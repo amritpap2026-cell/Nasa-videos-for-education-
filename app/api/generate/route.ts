@@ -101,7 +101,7 @@ export async function POST(request: Request) {
     } catch {
       // The concise prompt below remains available when GitHub is unreachable.
     }
-    const prompt = `${masterPrompt}\n\nCreate the complete YouTube package for this NASA space education channel. Topic: ${topic.trim()}. Language: ${normalizedLanguage}. Desired video length: ${selectedLength} minutes. Return the most useful production-ready sections from the master prompt, including TITLE, DESCRIPTION, TAGS, SEO KEYWORDS, and a timestamped VIDEO OUTLINE. Be accurate, inspiring, accessible to students, and never claim NASA endorsement.`
+    const prompt = `You are generating a complete YouTube production package.\n\nAUTHORITATIVE STYLE GUIDE:\n${masterPrompt || "Use a clear, accurate, curiosity-driven NASA space education style with a strong hook, student-friendly explanations, search-friendly metadata, and a practical timestamped structure."}\n\nFollow the AUTHORITATIVE STYLE GUIDE above for every field. Do not invent a different format, tone, or metadata strategy. Create every requested value from the topic, language, and duration below.\n\nTOPIC: ${topic.trim()}\nLANGUAGE: ${normalizedLanguage}\nDESIRED VIDEO LENGTH: ${selectedLength} minutes\n\nReturn a production-ready package containing every section required by the style guide, including TITLE, DESCRIPTION, TAGS, SEO KEYWORDS, and a timestamped VIDEO OUTLINE whose timing fits the selected duration. If the style guide names additional fields, include them too. Keep facts scientifically responsible, accessible to learners, inspiring, and do not claim NASA endorsement. Return only the finished package.`
     const models = await getAvailableModels(key)
 
     for (const model of models) {
