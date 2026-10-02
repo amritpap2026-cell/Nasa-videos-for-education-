@@ -50,8 +50,10 @@ export default function CosmosStudio() {
       const response = await fetch("/api/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ topic, language, gradeLevel, length, packageType }) })
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || "Generation failed")
+      const storyOnly = getStorytellingScript(data.text || "")
       setResult(data)
-      setStoryText(getStorytellingScript(data.text || ""))
+      setStoryText(storyOnly)
+      if (!storyOnly) setStatus("Part 11 storytelling script was not found. The second window will remain empty until Part 11 is generated.")
     } catch (error) { setStatus(error instanceof Error ? error.message : "Generation failed. Please try again.") } finally { setLoading(false) }
   }
 
@@ -73,14 +75,12 @@ export default function CosmosStudio() {
   }
 
   function getStorytellingScript(packageText: string) {
-    const normalized = packageText.replace(/\\r/g, "")
-    const label = /(?:पूर्ण शब्द-प्रति-शब्द कथा वाचन लिपि(?:\s*\(STORYTELLING SCRIPT\))?|पूर्ण शब्द-दर-शब्द स्क्रिप्ट(?:\s*\(STORYTELLING SCRIPT\))?|FULL WORD-FOR-WORD SCRIPT(?:\s*\(STORYTELLING SCRIPT\))?|STORYTELLING SCRIPT)/i
-    const heading = normalized.search(label)
-    if (heading < 0) return ""
-    const afterHeading = normalized.slice(heading).replace(label, "")
-    const nextSection = afterHeading.search(/\n\s*(?:PART\s*(?:12|13|14|15|16|17|18|19|20)|भाग\s*(?:12|13|14|15|16|17|18|19|20)|TITLE|शीर्षक|DESCRIPTION|विवरण|TAGS|टैग|SEO|VIDEO OUTLINE|वीडियो रूपरेखा|QUESTIONS|प्रश्न|CALL TO ACTION|आह्वान|MASTER PROMPT)\b/i)
-    const script = nextSection >= 0 ? afterHeading.slice(0, nextSection) : afterHeading
-    return cleanVoiceText(script)
+    const normalized = packageText.replace(/\r/g, "")
+    // The second window is intentionally hardcoded to Part 11 only.
+    const part11 = normalized.match(/(?:^|\n)\s*(?:PART\s*11|भाग\s*11|11[.)])[^\n]*\n([\s\S]*?)(?=\n\s*(?:PART\s*12|भाग\s*12|12[.)]|QUESTIONS|प्रश्न|CALL TO ACTION|आह्वान|TITLE|शीर्षक|DESCRIPTION|विवरण|TAGS|टैग|SEO|VIDEO OUTLINE|वीडियो रूपरेखा|MASTER PROMPT)\b|$)/i)
+    if (!part11?.[1]) return ""
+    const storyOnly = part11[1].replace(/^(?:पूर्ण शब्द-प्रति-शब्द कथा वाचन लिपि|पूर्ण शब्द-दर-शब्द स्क्रिप्ट|FULL WORD-FOR-WORD SCRIPT|STORYTELLING SCRIPT)\s*[:：]?\s*/i, "")
+    return cleanVoiceText(storyOnly)
   }
 
   async function generateVoiceover() {
