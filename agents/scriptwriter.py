@@ -1,27 +1,99 @@
-"""Stage 2: turn a research brief into a narrated script and visual plan."""
+"""Stage 2: expand a research brief into a complete narrated script and visual plan."""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import urllib.parse
+import urllib.request
 from dataclasses import asdict, dataclass
 from typing import Any
+
+GEMINI_MODEL = "gemini-2.5-flash"
+GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}"
+
 
 @dataclass
 class ScriptSection:
     heading: str
+    duration_seconds: int
     narration: str
     image_queries: list[str]
+    video_queries: list[str]
+    teaching_goal: str
+    curiosity_question: str
+
+
+def _call_gemini(prompt: str) -> dict[str, Any] | None:
+    key = os.getenv("GEMINI_API_KEY")
+    if not key:
+        return None
+    body = {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"temperature": 0.72, "responseMimeType": "application/json"}}
+    url = GEMINI_URL.format(model=GEMINI_MODEL, key=urllib.parse.quote(key, safe=""))
+    request = urllib.request.Request(url, data=json.dumps(body).encode(), headers={"Content-Type": "application/json"}, method="POST")
+    try:
+        with urllib.request.urlopen(request, timeout=60) as response:
+            data = json.loads(response.read().decode())
+        text = data["candidates"][0]["content"]["parts"][0]["text"]
+        return json.loads(text)
+    except (OSError, KeyError, IndexError, json.JSONDecodeError):
+        return None
+
+
+def _fallback(brief: dict[str, Any], minutes: int) -> dict[str, Any]:
+    topic = str(brief.get("topic", "NASA and space exploration"))
+    language = brief.get("language", "English")
+    seconds = max(60, minutes * 60 // 5)
+    headings = ["The mystery", "Why it matters", "How it works", "Evidence and discovery", "What students can explore next"]
+    sections = []
+    for heading in headings:
+        narration = f"Let us explore {topic} through the question: why does it matter, and how do we know what we know? In this chapter, we connect the science to an observation, explain the idea step by step, and relate it to Earth and everyday learning."
+        sections.append(asdict(ScriptSection(heading, seconds, narration, [f"NASA {topic} {heading}", f"scientific illustration {topic}"], [f"NASA {topic} mission footage", f"{topic} scientific animation"], f"Understand {heading.lower()} in the context of {topic}.", f"What would you investigate next about {topic}?")))
+    return {"topic": topic, "language": language, "duration_minutes": minutes, "sections": sections, "full_script": "\n\n".join(s["narration"] for s in sections), "source": "local fallback"}
+
 
 def write_script(brief: dict[str, Any], minutes: int = 10) -> dict[str, Any]:
-    topic = brief["topic"]
-    sections = []
-    for heading in brief.get("sections", ["Hook", "Science", "How it works", "Evidence", "Takeaway"]):
-        sections.append(asdict(ScriptSection(heading, f"Today we explore {topic}. {heading} helps us understand why this topic matters and how scientists study it.", [f"{topic} {heading}", f"NASA {topic}"])))
-    return {"topic": topic, "language": brief.get("language", "English"), "duration_minutes": minutes, "sections": sections, "full_script": "\n\n".join(section["narration"] for section in sections)}
+    """Create an engaging, curriculum-aware script with image and video searches per section."""
+    minutes = max(1, min(int(minutes), 60))
+    topic = str(brief.get("topic", "NASA and space exploration"))
+    language = brief.get("language", "English")
+    target_words = minutes * 125
+    prompt = f"""You are an expert science teacher and cinematic documentary writer.
+Expand this research brief into a complete word-for-word narration for Class 8-12 students.
+Topic: {topic}
+Language: {language}
+Target length: {minutes} minutes, approximately {target_words} spoken words.
+Research brief: {json.dumps(brief, ensure_ascii=False)}
+
+Make students want to keep listening: begin with a vivid question or mystery, explain why the
+subject matters, teach the mechanism or history step by step, distinguish evidence from guesses,
+connect to curriculum and Earth, use accurate NASA context, and end with a memorable curiosity
+question. Use fluent cinematic transitions but never add stage directions, labels, or metadata to
+narration. Divide the story into 5-8 balanced sections. For every section provide 2 searchable
+image queries and 2 searchable video queries. Queries must describe real visual subjects, NASA
+missions, instruments, diagrams, animations, or public-domain concepts; do not request copyrighted
+characters or vague words. Return ONLY valid JSON with this shape:
+{{"topic":"...","language":"...","duration_minutes":{minutes},"sections":[{{"heading":"...","duration_seconds":0,"narration":"...","image_queries":["...","..."],"video_queries":["...","..."],"teaching_goal":"...","curiosity_question":"..."}}],"full_script":"..."}}"""    result = _call_gemini(prompt)
+    if not isinstance(result, dict) or not isinstance(result.get("sections"), list) or not result["sections"]:
+        return _fallback(brief, minutes)
+    result["topic"] = topic
+    result["language"] = language
+    result["duration_minutes"] = minutes
+    result["full_script"] = "\n\n".join(str(section.get("narration", "")).strip() for section in result["sections"])
+    return result
+
 
 create_script = write_script
 
 if __name__ == "__main__":
-    import argparse, json
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description="Write a narrated educational script with visual queries.")
     parser.add_argument("topic")
     parser.add_argument("--minutes", type=int, default=10)
+    parser.add_argument("--language", default="English")
     args = parser.parse_args()
     from researcher import research
-    print(json.dumps(write_script(research(args.topic), args.minutes), indent=2, ensure_ascii=False))
+    brief = research(args.topic, language=args.language)
+    print(json.dumps(write_script(brief, args.minutes), indent=2, ensure_ascii=False))
+
+
+__all__ = ["ScriptSection", "write_script", "create_script"]
