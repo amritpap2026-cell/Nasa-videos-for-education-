@@ -64,7 +64,7 @@ async function createFallbackPackage(topic: string, language: string, gradeLevel
     // Keep the local package available when GitHub is unreachable.
   }
 
-  const guideSections = [...styleGuide.matchAll(/^#{1,3}\\s+(.+)$/gm)].map((match) => match[1].trim()).filter(Boolean).slice(0, 12)
+  const guideSections = [...styleGuide.matchAll(/^#{1,3}\s+(.+)$/gm)].map((match) => match[1].trim()).filter(Boolean).slice(0, 12)
   const sectionNote = guideSections.length ? guideSections.join(" | ") : "hook, educational clarity, SEO metadata, responsible NASA context, and duration-matched outline"
   if (language === "Hindi") {
     return `शीर्षक: ${safeTopic} | NASA की कहानी जो आपको जाननी चाहिए
@@ -78,9 +78,12 @@ SEO कीवर्ड: ${safeTopic}, NASA शिक्षा, अंतरि�
 वीडियो की अवधि: ${length} मिनट
 कक्षा: ${gradeLevel}. कठिन शब्दों की सरल परिभाषा, रोज़मर्रा के उदाहरण और 3 छोटे पुनरावृत्ति प्रश्न शामिल करें।
 
-कहानी की स्क्रिप्ट:
+PART 11 (STORYTELLING SCRIPT)
+<<<STORYTELLING_SCRIPT_START>>>
 कल्पना कीजिए कि हम ${safeTopic} को एक सरल सवाल से समझने की यात्रा शुरू करते हैं। यह विषय क्यों महत्वपूर्ण है, वैज्ञानिक इसे कैसे पढ़ते हैं, और प्रमाण हमें क्या बताते हैं—इन बातों को धीरे-धीरे समझें। कारण, प्रक्रिया और परिणाम को कक्षा ${gradeLevel} के विद्यार्थियों के लिए सरल उदाहरणों से जोड़ें। NASA के मिशनों और अवलोकनों ने हमारी समझ कैसे बदली, इसका पृथ्वी और भविष्य के अन्वेषण से क्या संबंध है, और विद्यार्थी इससे क्या सीख सकते हैं—सब कुछ स्पष्ट रूप से समझाएं। अंत में मुख्य सीख दोहराएं और एक जिज्ञासु प्रश्न छोड़ें। इस कहानी को ${length} मिनट के पूरे वीडियो के लिए विस्तार दें।
+<<<STORYTELLING_SCRIPT_END>>>
 
+PART 12
 वीडियो रूपरेखा:
 00:00 शुरुआत: हमें ${safeTopic} की परवाह क्यों करनी चाहिए?
 01:00 मुख्य प्रश्न और आवश्यक संदर्भ
@@ -103,9 +106,12 @@ SEO कीवर्ड: ${safeTopic}, NASA शिक्षा, अन्तर�
 भिडियो अवधि: ${length} मिनेट
 कक्षा: ${gradeLevel}। कठिन शब्दको सरल परिभाषा, दैनिक जीवनका उदाहरण र 3 वटा छोटा पुनरावृत्ति प्रश्न समावेश गर्नुहोस्।
 
-कथात्मक स्क्रिप्ट:
+PART 11 (STORYTELLING SCRIPT)
+<<<STORYTELLING_SCRIPT_START>>>
 कल्पना गर्नुहोस्, हामी ${safeTopic} बारे एउटा प्रश्नबाट यात्रा सुरु गर्छौं। यो विषय किन महत्वपूर्ण छ, वैज्ञानिकहरूले यसलाई कसरी अध्ययन गर्छन्, र प्रमाणहरूले हामीलाई के बताउँछन् भन्ने कुरा बिस्तारै बुझौं। कारण, प्रक्रिया र परिणामलाई कक्षा ${gradeLevel} का विद्यार्थीले बुझ्ने सरल उदाहरणसँग जोड्नुहोस्। NASA का मिसन र अवलोकनले हाम्रो ज्ञान कसरी बढाए, यसले पृथ्वी र भविष्यको अन्वेषणमा कस्तो अर्थ राख्छ, र यसबाट विद्यार्थीले के सिक्न सक्छन् भन्ने कुरा स्पष्ट रूपमा व्याख्या गर्नुहोस्। अन्त्यमा सिकेका मुख्य कुरा दोहोर्याउँदै अर्को जिज्ञासु प्रश्न छोड्नुहोस्। यो कथा ${length} मिनेटको पूर्ण भिडियोका लागि विस्तार गर्नुहोस्।
+<<<STORYTELLING_SCRIPT_END>>>
 
+PART 12
 भिडियो रूपरेखा:
 00:00 सुरुवात: हामीले ${safeTopic} बारे किन जान्नुपर्छ?
 01:00 मुख्य प्रश्न र आवश्यक सन्दर्भ
@@ -127,9 +133,12 @@ SEO KEYWORDS: ${safeTopic}, NASA education, space science, astronomy explained, 
 VIDEO LENGTH: ${length} minutes
 STUDENT LEVEL: ${gradeLevel}. Define difficult words, use familiar examples, and include 3 short review questions.
 
-STORYTELLING SCRIPT:
+PART 11 (STORYTELLING SCRIPT)
+<<<STORYTELLING_SCRIPT_START>>>
 Imagine beginning with a simple question: why does ${safeTopic} matter to us? Follow the journey of how scientists observe it, what evidence reveals, and how each discovery changes our understanding. Explain the cause, the process, and the result in a clear story for students. Connect the science to Earth and end with one hopeful question for the learner.
+<<<STORYTELLING_SCRIPT_END>>>
 
+PART 12
 VIDEO OUTLINE:
 00:00 Hook: Why should we care about ${safeTopic}?
 01:00 The big question and essential context
@@ -225,7 +234,15 @@ export async function POST(request: Request) {
     const maxMinutes = Number(selectedLength.split("-")[1]) || 10
     const targetWords = Math.max(450, Math.round(maxMinutes * 125))
     const maxOutputTokens = Math.min(14000, Math.max(2200, Math.round(targetWords * 1.65) + 1400))
-    const prompt = `You are generating a complete YouTube production package.\n\nAUTHORITATIVE STYLE GUIDE (style and required sections only):\n${masterPrompt || "Use a clear, accurate, curiosity-driven NASA space education style with a strong hook, student-friendly explanations, search-friendly metadata, and a practical timestamped structure."}\n\nFollow the style guide for structure, quality, tone, and metadata strategy. However, the selected language below is a hard requirement and overrides any language instruction or English-only example inside the style guide. Never translate only the description: translate every generated field.\n\nTOPIC: ${topic.trim()}\nSELECTED OUTPUT LANGUAGE: ${normalizedLanguage}\nDESIRED VIDEO LENGTH: ${selectedLength} minutes\nSTUDENT LEVEL: ${gradeLevel}\n\nMake this appropriate for the selected school level: define difficult words, use age-appropriate examples, explain one idea at a time, and finish with 3 short review questions.\n\nHARD LANGUAGE REQUIREMENT: ${languageInstruction}\n\nDURATION REQUIREMENT: The STORYTELLING SCRIPT is a complete narration for the full requested video length, not a short summary. Write approximately ${targetWords} words (about 125 spoken words per minute) and organize it as a flowing cinematic educational story. For a range such as 0-10, write for up to 10 minutes. Cover the opening mystery, why the topic matters, the historical or scientific context, how it works or happened step by step, the evidence and NASA missions or observations, common misconceptions, its connection to Earth and student curriculum, and a memorable conclusion. Use transitions and vivid but scientifically accurate imagery. Do not stop after the hook or outline.\n\nBefore finishing, check every section and remove English sentences, labels, headings, and explanatory notes when Hindi or Nepali is selected. Return a production-ready package containing every section required by the style guide, including title, description, tags, SEO keywords, a standalone Part 11 section with exactly one of these language-appropriate labels: "पूर्ण शब्द-प्रति-शब्द कथा वाचन लिपि (STORYTELLING SCRIPT)" for Nepali, "FULL WORD-FOR-WORD SCRIPT (STORYTELLING SCRIPT)" for English, or "पूर्ण शब्द-दर-शब्द स्क्रिप्ट (STORYTELLING SCRIPT)" for Hindi, followed by the complete word-for-word story, and a timestamped video outline whose timing fits the selected duration. The STORYTELLING SCRIPT must be the only narration source: do not put titles, tags, SEO labels, timestamps, calls to action, chapter headings, sound effects, stage directions, or production notes inside it. The client will send only this section to voiceover. Keep facts scientifically responsible, accessible to learners, inspiring, and do not claim NASA endorsement. Return only the finished package.`
+    const prompt = `You are generating a complete YouTube production package.\n\nAUTHORITATIVE STYLE GUIDE (style and required sections only):\n${masterPrompt || "Use a clear, accurate, curiosity-driven NASA space education style with a strong hook, student-friendly explanations, search-friendly metadata, and a practical timestamped structure."}\n\nFollow the style guide for structure, quality, tone, and metadata strategy. However, the selected language below is a hard requirement and overrides any language instruction or English-only example inside the style guide. Never translate only the description: translate every generated field.\n\nTOPIC: ${topic.trim()}\nSELECTED OUTPUT LANGUAGE: ${normalizedLanguage}\nDESIRED VIDEO LENGTH: ${selectedLength} minutes\nSTUDENT LEVEL: ${gradeLevel}\n\nMake this appropriate for the selected school level: define difficult words, use age-appropriate examples, explain one idea at a time, and finish with 3 short review questions.\n\nHARD LANGUAGE REQUIREMENT: ${languageInstruction}\n\nDURATION REQUIREMENT: The STORYTELLING SCRIPT is a complete narration for the full requested video length, not a short summary. Write approximately ${targetWords} words (about 125 spoken words per minute) and organize it as a flowing cinematic educational story. For a range such as 0-10, write for up to 10 minutes. Cover the opening mystery, why the topic matters, the historical or scientific context, how it works or happened step by step, the evidence and NASA missions or observations, common misconceptions, its connection to Earth and student curriculum, and a memorable conclusion. Use transitions and vivid but scientifically accurate imagery. Do not stop after the hook or outline.\n\nBefore finishing, check every section and remove English sentences, labels, headings, and explanatory notes when Hindi or Nepali is selected. Return a production-ready package containing every section required by the style guide, including title, description, tags, SEO keywords, a standalone Part 11 (STORYTELLING SCRIPT) using this exact wrapper so it can be extracted later:
+
+PART 11 (STORYTELLING SCRIPT)
+<<<STORYTELLING_SCRIPT_START>>>
+[the complete word-for-word narration only]
+<<<STORYTELLING_SCRIPT_END>>>
+PART 12
+
+The heading line MUST contain the exact text (STORYTELLING SCRIPT). Use this language-appropriate heading on the PART 11 line: "FULL WORD-FOR-WORD SCRIPT (STORYTELLING SCRIPT)" for English, "पूर्ण शब्द-दर-शब्द स्क्रिप्ट (STORYTELLING SCRIPT)" for Hindi, or "पूर्ण शब्द-प्रति-शब्द कथा वाचन लिपि (STORYTELLING SCRIPT)" for Nepali. Put only the spoken story between the START and END markers. Then continue with PART 12 (storyboard / video outline) and remaining sections. The STORYTELLING SCRIPT must be the only narration source: do not put titles, tags, SEO labels, timestamps, calls to action, chapter headings, sound effects, stage directions, or production notes inside it. The client will send only the text between the START and END markers to voiceover. Keep facts scientifically responsible, accessible to learners, inspiring, and do not claim NASA endorsement. Return only the finished package.`
     const models = await getAvailableModels(key)
 
     for (const model of models) {
