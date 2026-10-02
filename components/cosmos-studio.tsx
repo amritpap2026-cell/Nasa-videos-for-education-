@@ -79,7 +79,7 @@ export default function CosmosStudio() {
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || "Generation failed")
       setResult(data)
-      setStoryText(getStorytellingScript(data.text || ""))
+      setStoryText("")
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Generation failed. Please try again.")
     } finally {
@@ -88,9 +88,9 @@ export default function CosmosStudio() {
   }
 
   async function openExternalTts(url: string, name: string) {
-    const story = result?.text ? getStorytellingScript(result.text) : ""
+    const story = storyText.trim()
     if (!story) {
-      setStatus("Generate a package with a storytelling script first.")
+      setStatus("Extract Part 11 into the second window first.")
       return
     }
     try {
@@ -103,30 +103,29 @@ export default function CosmosStudio() {
     }
   }
 
-  function cleanVoiceText(text: string) {
-    return text
-      .replace(/\([^)]*\)/g, " ")
-      .replace(/\[[^\]]*\]/g, " ")
-      .replace(/\{[^}]*\}/g, " ")
-      .replace(/\b(?:pause|पॉज़|विराम)\s*\d*\s*(?:seconds?|सेकंड)?\b/gi, " ")
-      .replace(/\s*[—–-]\s*/g, " ")
-      .replace(/[<>*_#`]/g, " ")
-      .replace(/\s+/g, " ")
-      .trim()
+  function extractPart11(packageText: string) {
+    if (!packageText.trim()) return ""
+    const normalized = packageText.replace(/\r\n/g, "\n").replace(/\r/g, "\n")
+    const start =
+      /(?:^|\n)\s*(?:PART\s*11\b|भाग\s*11\b|पूर्ण शब्द-प्रति-शब्द कथा वाचन लिपि(?:\s*\(STORYTELLING SCRIPT\))?|पूर्ण शब्द-दर-शब्द स्क्रिप्ट(?:\s*\(STORYTELLING SCRIPT\))?|FULL WORD-FOR-WORD SCRIPT(?:\s*\(STORYTELLING SCRIPT\))?|STORYTELLING SCRIPT)/i
+    const startMatch = start.exec(normalized)
+    if (!startMatch) return ""
+    const afterHeadingLine = normalized.slice(startMatch.index + startMatch[0].length).replace(/^[^\n]*\n?/, "")
+    const end = /(?:^|\n)\s*(?:PART\s*12\b|भाग\s*12\b)/i
+    const endMatch = end.exec(afterHeadingLine)
+    const script = endMatch ? afterHeadingLine.slice(0, endMatch.index) : afterHeadingLine
+    return script.replace(/^\n+/, "").replace(/\s+$/, "")
   }
 
-  function getStorytellingScript(packageText: string) {
-    const normalized = packageText.replace(/\r/g, "")
-    const label =
-      /(?:पूर्ण शब्द-प्रति-शब्द कथा वाचन लिपि(?:\s*\(STORYTELLING SCRIPT\))?|पूर्ण शब्द-दर-शब्द स्क्रिप्ट(?:\s*\(STORYTELLING SCRIPT\))?|FULL WORD-FOR-WORD SCRIPT(?:\s*\(STORYTELLING SCRIPT\))?|STORYTELLING SCRIPT)/i
-    const heading = normalized.search(label)
-    if (heading < 0) return ""
-    const afterHeading = normalized.slice(heading).replace(label, "")
-    const nextSection = afterHeading.search(
-      /\n\s*(?:PART\s*(?:12|13|14|15|16|17|18|19|20)|भाग\s*(?:12|13|14|15|16|17|18|19|20)|TITLE|शीर्षक|DESCRIPTION|विवरण|TAGS|टैग|SEO|VIDEO OUTLINE|वीडियो रूपरेखा|QUESTIONS|प्रश्न|CALL TO ACTION|आह्वान|MASTER PROMPT)\b/i
-    )
-    const script = nextSection >= 0 ? afterHeading.slice(0, nextSection) : afterHeading
-    return cleanVoiceText(script)
+  function extractPart11ToStoryWindow() {
+    const packageText = result?.text || ""
+    const script = extractPart11(packageText)
+    if (!script) {
+      setStatus("Part 11 was not found in the YouTube package. Make sure the first window has PART 11 above PART 12.")
+      return
+    }
+    setStoryText(script)
+    setStatus("Part 11 copied into the second window, identical to the first window.")
   }
 
   async function generateVoiceover() {
@@ -466,7 +465,6 @@ export default function CosmosStudio() {
                   onChange={(e) => {
                     const text = e.target.value
                     setResult({ ...result, text })
-                    setStoryText(getStorytellingScript(text))
                   }}
                   rows={18}
                 />
@@ -476,19 +474,28 @@ export default function CosmosStudio() {
                   style={{ marginTop: 18, padding: 18, border: "2px solid #b7ded1", borderRadius: 14, background: "#f4fbf7" }}
                 >
                   <label htmlFor="story-window">
-                    <strong>Storytelling script only</strong>
+                    <strong>Part 11 storytelling script</strong>
                   </label>
                   <p className="field-hint">
-                    Only the full word-for-word story from Part 11 is copied here by default. Student questions and
-                    every other YouTube section stay in the upper window. Edit this story freely; voiceover uses only
-                    this window.
+                    This window stays blank until you press Extract Part 11. That button copies only the Part 11
+                    script from the first window — everything above Part 12 — identically. Voiceover uses only this
+                    window.
                   </p>
+                  <button
+                    className="secondary voice-play"
+                    type="button"
+                    onClick={extractPart11ToStoryWindow}
+                    style={{ marginTop: 10 }}
+                  >
+                    Extract Part 11
+                  </button>
                   <textarea
                     id="story-window"
                     className="package-editor"
                     style={{ minHeight: 360, width: "100%", resize: "vertical", marginTop: 10 }}
                     value={storyText}
                     onChange={(e) => setStoryText(e.target.value)}
+                    placeholder="Blank until you extract Part 11 from the YouTube package above."
                     aria-describedby="story-window-help"
                   />
                   <span id="story-window-help" className="sr-only">
