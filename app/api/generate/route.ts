@@ -127,8 +127,8 @@ SEO KEYWORDS: ${safeTopic}, NASA education, space science, astronomy explained, 
 VIDEO LENGTH: ${length} minutes
 STUDENT LEVEL: ${gradeLevel}. Define difficult words, use familiar examples, and include 3 short review questions.
 
-STORYTELLING SCRIPT:
-Imagine beginning with a simple question: why does ${safeTopic} matter to us? Follow the journey of how scientists observe it, what evidence reveals, and how each discovery changes our understanding. Explain the cause, the process, and the result in a clear story for students. Connect the science to Earth and end with one hopeful question for the learner.
+PART 11 — FULL WORD-FOR-WORD SCRIPT (STORYTELLING SCRIPT):
+Write only the complete narrated storytelling script here. Do not include headings, labels, stage directions, brackets, parenthesized text, pause instructions, hyphens, metadata, questions, or any other production section. Imagine beginning with a simple question: why does ${safeTopic} matter to us? Follow the journey of how scientists observe it, what evidence reveals, and how each discovery changes our understanding. Explain the cause, the process, and the result in a clear story for students. Connect the science to Earth and end with one hopeful question for the learner.
 
 VIDEO OUTLINE:
 00:00 Hook: Why should we care about ${safeTopic}?
