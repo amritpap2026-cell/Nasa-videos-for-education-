@@ -47,7 +47,7 @@ def _fallback(brief: dict[str, Any], minutes: int) -> dict[str, Any]:
     headings = ["The mystery", "Why it matters", "How it works", "Evidence and discovery", "What students can explore next"]
     sections = []
     for heading in headings:
-        narration = f"Let us explore {topic} through the question: why does it matter, and how do we know what we know? In this chapter, we connect the science to an observation, explain the idea step by step, and relate it to Earth and everyday learning."
+        narration = f"Imagine looking closely at {topic} and asking the question that starts every scientific journey: why does it happen, and how can we know? We begin with the mystery, then connect it to what students already learn about evidence, patterns, energy, matter, Earth, and the universe. Step by step, we explain how scientists observe {topic}, what instruments and missions reveal, and which ideas remain open for discovery. By the end, the topic is not just a fact to remember; it becomes a question you can investigate for yourself."
         sections.append(asdict(ScriptSection(heading, seconds, narration, [f"NASA {topic} {heading}", f"scientific illustration {topic}"], [f"NASA {topic} mission footage", f"{topic} scientific animation"], f"Understand {heading.lower()} in the context of {topic}.", f"What would you investigate next about {topic}?")))
     return {"topic": topic, "language": language, "duration_minutes": minutes, "sections": sections, "full_script": "\n\n".join(s["narration"] for s in sections), "source": "local fallback"}
 
@@ -72,14 +72,35 @@ question. Use fluent cinematic transitions but never add stage directions, label
 narration. Divide the story into 5-8 balanced sections. For every section provide 2 searchable
 image queries and 2 searchable video queries. Queries must describe real visual subjects, NASA
 missions, instruments, diagrams, animations, or public-domain concepts; do not request copyrighted
-characters or vague words. Return ONLY valid JSON with this shape:
-{{"topic":"...","language":"...","duration_minutes":{minutes},"sections":[{{"heading":"...","duration_seconds":0,"narration":"...","image_queries":["...","..."],"video_queries":["...","..."],"teaching_goal":"...","curiosity_question":"..."}}],"full_script":"..."}}"""    result = _call_gemini(prompt)
+characters or vague words.     Return ONLY valid JSON with this shape:
+{{"topic":"...","language":"...","duration_minutes":{minutes},"sections":[{{"heading":"...","duration_seconds":0,"narration":"...","image_queries":["...","..."],"video_queries":["...","..."],"teaching_goal":"...","curiosity_question":"..."}}],"full_script":"..."}}"""
+    result = _call_gemini(prompt)
     if not isinstance(result, dict) or not isinstance(result.get("sections"), list) or not result["sections"]:
+        return _fallback(brief, minutes)
+
+    clean_sections: list[dict[str, Any]] = []
+    for raw_section in result["sections"]:
+        if not isinstance(raw_section, dict):
+            continue
+        narration = str(raw_section.get("narration", "")).strip()
+        if not narration:
+            continue
+        clean_sections.append({
+            "heading": str(raw_section.get("heading", "Science explained")).strip(),
+            "duration_seconds": max(30, int(raw_section.get("duration_seconds", minutes * 60 // max(1, len(result["sections"]))))),
+            "narration": narration,
+            "image_queries": [str(query).strip() for query in raw_section.get("image_queries", []) if str(query).strip()][:4] or [f"NASA {topic} scientific illustration"],
+            "video_queries": [str(query).strip() for query in raw_section.get("video_queries", []) if str(query).strip()][:4] or [f"NASA {topic} mission footage"],
+            "teaching_goal": str(raw_section.get("teaching_goal", f"Understand {topic}.")).strip(),
+            "curiosity_question": str(raw_section.get("curiosity_question", f"What would you investigate next about {topic}?")).strip(),
+        })
+    if not clean_sections:
         return _fallback(brief, minutes)
     result["topic"] = topic
     result["language"] = language
     result["duration_minutes"] = minutes
-    result["full_script"] = "\n\n".join(str(section.get("narration", "")).strip() for section in result["sections"])
+    result["sections"] = clean_sections
+    result["full_script"] = "\n\n".join(section["narration"] for section in clean_sections)
     return result
 
 
