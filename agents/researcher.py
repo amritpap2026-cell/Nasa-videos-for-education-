@@ -108,10 +108,51 @@ def create_brief(topic: str, language: str = "English") -> dict[str, Any]:
     return research(topic, language)
 
 
-def generate_topics(niche: str, count: int = 8) -> list[str]:
-    signals = search_current_signals(niche, max(5, count))
+def generate_topics(niche: str, count: int = 8, language: str = "English") -> list[str]:
+    """Generate current, niche-related topic ideas from live signals plus Gemini.
+
+    The result is intentionally grounded in public NASA and news signals. Gemini
+    turns those signals into student-friendly, trend-aware titles without claiming
+    access to private search analytics or inventing live trends.
+    """
+    count = max(1, min(count, 30))
+    subject = niche.strip() or "NASA and space exploration"
+    signals = search_current_signals(subject, max(8, count))
+    key = os.getenv("GEMINI_API_KEY")
+    if key:
+        prompt = f"""You are the research stage of a NASA education video pipeline.
+Niche/topic: {subject}
+Audience: Class 8-12 students
+Language: {language}
+Live public signals from NASA media and Google News RSS: {json.dumps(signals, ensure_ascii=False)}
+
+Create exactly {count} distinct, topic-related video ideas. Use current signals as inspiration,
+but do not claim search volume, rankings, or facts that are not supported. Mix timely discoveries
+with evergreen curiosity hooks, curriculum connections, how/why explainers, comparisons, and
+mysteries. Every idea must clearly relate to {subject}, be scientifically responsible, and be
+interesting for Class 8-12. Return ONLY a JSON array of title strings in {language}, with no
+numbering or extra text."""
+        body = {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"temperature": 0.75, "responseMimeType": "application/json"}}
+        try:
+            url = GEMINI_URL.format(model=GEMINI_MODEL, key=urllib.parse.quote(key, safe=""))
+            request = urllib.request.Request(url, data=json.dumps(body).encode(), headers={"Content-Type": "application/json"}, method="POST")
+            with urllib.request.urlopen(request, timeout=30) as response:
+                data = json.loads(response.read().decode())
+            ideas = json.loads(data["candidates"][0]["content"]["parts"][0]["text"])
+            if isinstance(ideas, list):
+                cleaned = [str(idea).strip() for idea in ideas if str(idea).strip()]
+                if cleaned:
+                    return list(dict.fromkeys(cleaned))[:count]
+        except Exception:
+            pass
     titles = [item["title"] for item in signals if item.get("title")]
-    return titles[:count] or [f"{niche.strip()}: the science students should understand #{index}" for index in range(1, max(1, count) + 1)]
+    fallback = [
+        f"Why {subject} matters: the science students should understand",
+        f"How {subject} works, explained with a NASA story",
+        f"What NASA has discovered about {subject}",
+        f"{subject}: the mystery, evidence, and future of exploration",
+    ]
+    return list(dict.fromkeys(titles + fallback))[:count]
 
 
 def write_brief(brief: dict[str, Any], path: str) -> None:
@@ -132,7 +173,7 @@ def main() -> None:
     parser.add_argument("--topics", action="store_true", help="Print current topic ideas instead of a brief")
     parser.add_argument("--count", type=int, default=8)
     args = parser.parse_args()
-    result = generate_topics(args.topic, args.count) if args.topics else research(args.topic, args.language, args.audience)
+    result = generate_topics(args.topic, args.count, args.language) if args.topics else research(args.topic, args.language, args.audience)
     print(json.dumps(result, ensure_ascii=False, indent=2))
 
 
