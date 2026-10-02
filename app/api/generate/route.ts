@@ -54,8 +54,9 @@ function createFallbackTopics(topic: string, language: string) {
   ]
 }
 
-async function createFallbackPackage(topic: string, language: string, length: string) {
+async function createFallbackPackage(topic: string, language: string, gradeLevel: string, length: string) {
   const safeTopic = topic.trim() || "NASA and space exploration"
+  const studentNote = `\nSTUDENT LEVEL: ${gradeLevel}. Explain concepts clearly for this school level, using familiar examples, short definitions, and 3 simple review questions.`
   const languageNote = language === "English" ? "" : `\nLANGUAGE NOTE: Write narration and on-screen text in ${language}.`
   let styleGuide = ""
   try {
@@ -81,7 +82,7 @@ TAGS: NASA, ${safeTopic}, space exploration, astronomy, cosmos, science educatio
 
 SEO KEYWORDS: ${safeTopic}, NASA education, space science, astronomy explained, universe facts, STEM learning
 
-VIDEO LENGTH: ${length} minutes
+VIDEO LENGTH: ${length} minutes${studentNote}
 
 VIDEO OUTLINE:
 00:00 Hook: Why should we care about ${safeTopic}?
@@ -95,7 +96,7 @@ CALL TO ACTION: Subscribe for accurate, inspiring NASA and space education in En
 
 export async function POST(request: Request) {
   try {
-    const { topic, language = "English", length = "0-10", mode = "package" } = await request.json()
+    const { topic, language = "English", gradeLevel = "Class 8–12", length = "0-10", mode = "package" } = await request.json()
     if (typeof topic !== "string" || topic.length > 300) return NextResponse.json({ error: "Please enter a topic no longer than 300 characters." }, { status: 400 })
     const normalizedLanguage = ["English", "Hindi", "Nepali"].includes(language) ? language : "English"
     const key = (process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY || "").trim()
@@ -126,7 +127,7 @@ export async function POST(request: Request) {
 
     if (topic.trim().length < 3) return NextResponse.json({ error: "Please enter a topic with at least 3 characters." }, { status: 400 })
     const selectedLength = ["0-5", "0-10", "0-15", "0-30", "0-60"].includes(length) ? length : "0-10"
-    if (!key) return NextResponse.json({ text: await createFallbackPackage(topic, normalizedLanguage, selectedLength), model: "local master-prompt fallback" })
+    if (!key) return NextResponse.json({ text: await createFallbackPackage(topic, normalizedLanguage, gradeLevel, selectedLength), model: "local master-prompt fallback" })
     let masterPrompt = ""
     try {
       const promptResponse = await fetch(masterPromptUrl, { signal: AbortSignal.timeout(8_000), next: { revalidate: 3600 } })
@@ -139,7 +140,7 @@ export async function POST(request: Request) {
       : normalizedLanguage === "Nepali"
         ? "Write every user-facing field entirely in Nepali using Devanagari script, including the title, description, tags, SEO keywords, outline, narration, captions, calls to action, and any extra sections. Keep proper nouns such as NASA, spacecraft, and mission names in their recognized form when appropriate, but do not switch the surrounding text to English."
         : "Write every user-facing field entirely in English, including the title, description, tags, SEO keywords, outline, narration, captions, calls to action, and any extra sections."
-    const prompt = `You are generating a complete YouTube production package.\n\nAUTHORITATIVE STYLE GUIDE (style and required sections only):\n${masterPrompt || "Use a clear, accurate, curiosity-driven NASA space education style with a strong hook, student-friendly explanations, search-friendly metadata, and a practical timestamped structure."}\n\nFollow the style guide for structure, quality, tone, and metadata strategy. However, the selected language below is a hard requirement and overrides any language instruction or English-only example inside the style guide. Never translate only the description: translate every generated field.\n\nTOPIC: ${topic.trim()}\nSELECTED OUTPUT LANGUAGE: ${normalizedLanguage}\nDESIRED VIDEO LENGTH: ${selectedLength} minutes\n\nHARD LANGUAGE REQUIREMENT: ${languageInstruction}\n\nBefore finishing, check every section and remove English sentences, labels, headings, and explanatory notes when Hindi or Nepali is selected. Return a production-ready package containing every section required by the style guide, including title, description, tags, SEO keywords, and a timestamped video outline whose timing fits the selected duration. Keep facts scientifically responsible, accessible to learners, inspiring, and do not claim NASA endorsement. Return only the finished package.`
+    const prompt = `You are generating a complete YouTube production package.\n\nAUTHORITATIVE STYLE GUIDE (style and required sections only):\n${masterPrompt || "Use a clear, accurate, curiosity-driven NASA space education style with a strong hook, student-friendly explanations, search-friendly metadata, and a practical timestamped structure."}\n\nFollow the style guide for structure, quality, tone, and metadata strategy. However, the selected language below is a hard requirement and overrides any language instruction or English-only example inside the style guide. Never translate only the description: translate every generated field.\n\nTOPIC: ${topic.trim()}\nSELECTED OUTPUT LANGUAGE: ${normalizedLanguage}\nDESIRED VIDEO LENGTH: ${selectedLength} minutes\nSTUDENT LEVEL: ${gradeLevel}\n\nMake this appropriate for the selected school level: define difficult words, use age-appropriate examples, explain one idea at a time, and finish with 3 short review questions.\n\nHARD LANGUAGE REQUIREMENT: ${languageInstruction}\n\nBefore finishing, check every section and remove English sentences, labels, headings, and explanatory notes when Hindi or Nepali is selected. Return a production-ready package containing every section required by the style guide, including title, description, tags, SEO keywords, and a timestamped video outline whose timing fits the selected duration. Keep facts scientifically responsible, accessible to learners, inspiring, and do not claim NASA endorsement. Return only the finished package.`
     const models = await getAvailableModels(key)
 
     for (const model of models) {
@@ -170,7 +171,7 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({
-      text: await createFallbackPackage(topic, normalizedLanguage, selectedLength),
+      text: await createFallbackPackage(topic, normalizedLanguage, gradeLevel, selectedLength),
       model: "fallback",
       notice: "Gemini models were unavailable. This package was created locally.",
     })
