@@ -1,6 +1,16 @@
 """Stage 3: generate a cinematic MP3 with Edge-TTS."""
 import asyncio
+import re
 from pathlib import Path
+
+
+def clean_voice_text(text: str) -> str:
+    """Remove production directions and punctuation that must not be spoken."""
+    text = re.sub(r"\([^)]*\)|\[[^\]]*\]|\{[^}]*\}", " ", text)
+    text = re.sub(r"\b(?:pause|पॉज़|विराम)\s*\d*\s*(?:seconds?|सेकंड)?\b", " ", text, flags=re.IGNORECASE)
+    text = re.sub(r"\s*[—–-]\s*", " ", text)
+    text = re.sub(r"[<>*_#`]", " ", text)
+    return re.sub(r"\s+", " ", text).strip()
 
 # Natural, expressive Edge Neural voices selected for educational storytelling.
 # These are public Edge-TTS voice IDs; no provider API key is required.
@@ -19,7 +29,7 @@ async def _save(text: str, output: Path, language: str) -> Path:
         import edge_tts
     except ImportError as error:
         raise RuntimeError("Install edge-tts to generate MP3 audio: pip install edge-tts") from error
-    clean_text = " ".join(text.split())
+    clean_text = clean_voice_text(text)
     if not clean_text:
         raise ValueError("The storytelling script is empty.")
     selected_language = language if language in VOICE_MAP else "English"

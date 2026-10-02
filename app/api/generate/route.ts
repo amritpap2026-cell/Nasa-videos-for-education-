@@ -151,7 +151,9 @@ export async function POST(request: Request) {
 
     if (mode === "voiceover") {
       if (!key) return NextResponse.json({ error: "GEMINI_API_KEY is not configured for voiceover." }, { status: 503 })
-      const script = typeof requestBody?.script === "string" ? requestBody.script.trim() : ""
+      const script = typeof requestBody?.script === "string"
+        ? requestBody.script.replace(/\([^)]*\)|\[[^\]]*\]|\{[^}]*\}/g, " ").replace(/\b(?:pause|पॉज़|विराम)\s*\d*\s*(?:seconds?|सेकंड)?\b/gi, " ").replace(/\s*[—–-]\s*/g, " ").replace(/[<>*_#`]/g, " ").replace(/\s+/g, " ").trim()
+        : ""
       const voice = typeof requestBody?.voice === "string" ? requestBody.voice : "Kore"
       const voiceLanguage = ["English", "Hindi", "Nepali"].includes(language) ? language : "English"
       if (!script) return NextResponse.json({ error: "Add a storytelling script before generating voiceover." }, { status: 400 })

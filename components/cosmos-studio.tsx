@@ -68,21 +68,19 @@ export default function CosmosStudio() {
     }
   }
 
+  function cleanVoiceText(text: string) {
+    return text.replace(/\([^)]*\)/g, " ").replace(/\[[^\]]*\]/g, " ").replace(/\{[^}]*\}/g, " ").replace(/\b(?:pause|पॉज़|विराम)\s*\d*\s*(?:seconds?|सेकंड)?\b/gi, " ").replace(/\s*[—–-]\s*/g, " ").replace(/[<>*_#`]/g, " ").replace(/\s+/g, " ").trim()
+  }
+
   function getStorytellingScript(packageText: string) {
-    const lines = packageText.split(/\r?\n/)
-    const labels = ["पूर्ण शब्द-प्रति-शब्द कथा वाचन लिपि", "पूर्ण शब्द-दर-शब्द स्क्रिप्ट", "FULL WORD-FOR-WORD SCRIPT", "STORYTELLING SCRIPT", "STORY SCRIPT", "कहानी की स्क्रिप्ट", "कथात्मक स्क्रिप्ट", "कथा स्क्रिप्ट", "कथन स्क्रिप्ट"]
-    const start = lines.findIndex((line) => labels.some((label) => line.toUpperCase().includes(label.toUpperCase())))
-    if (start >= 0) {
-      const firstLine = lines[start].replace(/^[^:：]*[:：]?\\s*/, "").trim()
-      const storyLines = firstLine && !labels.some((label) => firstLine.toUpperCase().includes(label.toUpperCase())) ? [firstLine] : []
-      for (const line of lines.slice(start + 1)) {
-        if (/^\\s*(?:PART\\s*\\d+|भाग\\s*\\d+|TITLE|शीर्षक|DESCRIPTION|विवरण|TAGS|टैग|SEO|VIDEO OUTLINE|वीडियो रूपरेखा|QUESTIONS|प्रश्न|CALL TO ACTION|आह्वान|MASTER PROMPT)\\b/i.test(line)) break
-        storyLines.push(line)
-      }
-      if (storyLines.join("\\n").trim()) return storyLines.join("\\n").trim()
-    }
-    const partEleven = packageText.match(/(?:^|\\n)\\s*(?:PART\\s*11|भाग\\s*11|11[.)])[^\\n]*\\n([\\s\\S]*?)(?=\\n\\s*(?:PART\\s*12|भाग\\s*12|QUESTIONS|प्रश्न|CALL TO ACTION|आह्वान|$))/i)
-    return partEleven?.[1]?.trim() || packageText.trim()
+    const normalized = packageText.replace(/\\r/g, "")
+    const label = /(?:पूर्ण शब्द-प्रति-शब्द कथा वाचन लिपि(?:\s*\(STORYTELLING SCRIPT\))?|पूर्ण शब्द-दर-शब्द स्क्रिप्ट(?:\s*\(STORYTELLING SCRIPT\))?|FULL WORD-FOR-WORD SCRIPT(?:\s*\(STORYTELLING SCRIPT\))?|STORYTELLING SCRIPT)/i
+    const heading = normalized.search(label)
+    if (heading < 0) return ""
+    const afterHeading = normalized.slice(heading).replace(label, "")
+    const nextSection = afterHeading.search(/\n\s*(?:PART\s*(?:12|13|14|15|16|17|18|19|20)|भाग\s*(?:12|13|14|15|16|17|18|19|20)|TITLE|शीर्षक|DESCRIPTION|विवरण|TAGS|टैग|SEO|VIDEO OUTLINE|वीडियो रूपरेखा|QUESTIONS|प्रश्न|CALL TO ACTION|आह्वान|MASTER PROMPT)\b/i)
+    const script = nextSection >= 0 ? afterHeading.slice(0, nextSection) : afterHeading
+    return cleanVoiceText(script)
   }
 
   async function generateVoiceover() {
