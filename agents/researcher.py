@@ -14,8 +14,10 @@ import urllib.request
 from dataclasses import asdict, dataclass
 from typing import Any
 
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
-GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}"
+from config import GEMINI_API_URL, model_candidates
+
+GEMINI_MODELS = model_candidates()
+GEMINI_URL = GEMINI_API_URL
 
 @dataclass
 class ResearchBrief:
@@ -78,7 +80,7 @@ Return ONLY valid JSON with these keys: why_trending (array of 3 strings), learn
 Create a topic-specific brief, not generic filler. Explain why the topic is timely or curiosity-driven, while clearly separating current signals from verified science. Keep it suitable for students in {audience}. Use {language} for all explanations. Include source_notes with the public sources used and say when live signals were unavailable."""
     body = {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"temperature": 0.35, "responseMimeType": "application/json"}}
     try:
-        url = GEMINI_URL.format(model=GEMINI_MODEL, key=urllib.parse.quote(key, safe=""))
+        url = GEMINI_URL.format(model=GEMINI_MODELS[0], key=urllib.parse.quote(key, safe=""))
         request = urllib.request.Request(url, data=json.dumps(body).encode(), headers={"Content-Type": "application/json"}, method="POST")
         with urllib.request.urlopen(request, timeout=30) as response:
             data = json.loads(response.read().decode())
@@ -134,7 +136,7 @@ interesting for Class 8-12. Return ONLY a JSON array of title strings in {langua
 numbering or extra text."""
         body = {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"temperature": 0.75, "responseMimeType": "application/json"}}
         try:
-            url = GEMINI_URL.format(model=GEMINI_MODEL, key=urllib.parse.quote(key, safe=""))
+            url = GEMINI_URL.format(model=GEMINI_MODELS[0], key=urllib.parse.quote(key, safe=""))
             request = urllib.request.Request(url, data=json.dumps(body).encode(), headers={"Content-Type": "application/json"}, method="POST")
             with urllib.request.urlopen(request, timeout=30) as response:
                 data = json.loads(response.read().decode())

@@ -9,8 +9,10 @@ import urllib.request
 from dataclasses import asdict, dataclass
 from typing import Any
 
-GEMINI_MODEL = "gemini-2.5-flash"
-GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}"
+from config import GEMINI_API_URL, model_candidates
+
+GEMINI_MODELS = model_candidates()
+GEMINI_URL = GEMINI_API_URL
 
 
 @dataclass
@@ -29,15 +31,17 @@ def _call_gemini(prompt: str) -> dict[str, Any] | None:
     if not key:
         return None
     body = {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"temperature": 0.72, "responseMimeType": "application/json"}}
-    url = GEMINI_URL.format(model=GEMINI_MODEL, key=urllib.parse.quote(key, safe=""))
-    request = urllib.request.Request(url, data=json.dumps(body).encode(), headers={"Content-Type": "application/json"}, method="POST")
-    try:
-        with urllib.request.urlopen(request, timeout=60) as response:
-            data = json.loads(response.read().decode())
-        text = data["candidates"][0]["content"]["parts"][0]["text"]
-        return json.loads(text)
-    except (OSError, KeyError, IndexError, json.JSONDecodeError):
-        return None
+    for model in GEMINI_MODELS:
+        url = GEMINI_URL.format(model=model, key=urllib.parse.quote(key, safe=""))
+        request = urllib.request.Request(url, data=json.dumps(body).encode(), headers={"Content-Type": "application/json"}, method="POST")
+        try:
+            with urllib.request.urlopen(request, timeout=60) as response:
+                data = json.loads(response.read().decode())
+            text = data["candidates"][0]["content"]["parts"][0]["text"]
+            return json.loads(text)
+        except (urllib.error.URLError, KeyError, IndexError, json.JSONDecodeError):
+            continue
+    return None
 
 
 def _fallback(brief: dict[str, Any], minutes: int) -> dict[str, Any]:
