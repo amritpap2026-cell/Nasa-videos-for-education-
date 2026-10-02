@@ -105,27 +105,57 @@ export default function CosmosStudio() {
 
   function extractPart11(packageText: string) {
     if (!packageText.trim()) return ""
-    const normalized = packageText.replace(/\r\n/g, "\n").replace(/\r/g, "\n")
-    const start =
-      /(?:^|\n)\s*(?:PART\s*11\b|भाग\s*11\b|पूर्ण शब्द-प्रति-शब्द कथा वाचन लिपि(?:\s*\(STORYTELLING SCRIPT\))?|पूर्ण शब्द-दर-शब्द स्क्रिप्ट(?:\s*\(STORYTELLING SCRIPT\))?|FULL WORD-FOR-WORD SCRIPT(?:\s*\(STORYTELLING SCRIPT\))?|STORYTELLING SCRIPT)/i
-    const startMatch = start.exec(normalized)
-    if (!startMatch) return ""
-    const afterHeadingLine = normalized.slice(startMatch.index + startMatch[0].length).replace(/^[^\n]*\n?/, "")
-    const end = /(?:^|\n)\s*(?:PART\s*12\b|भाग\s*12\b)/i
-    const endMatch = end.exec(afterHeadingLine)
-    const script = endMatch ? afterHeadingLine.slice(0, endMatch.index) : afterHeadingLine
-    return script.replace(/^\n+/, "").replace(/\s+$/, "")
+    const text = packageText.replace(/\r\n/g, "\n").replace(/\r/g, "\n")
+
+    const tagged = text.match(/<<<STORYTELLING_SCRIPT_START>>>\s*([\s\S]*?)\s*<<<STORYTELLING_SCRIPT_END>>>/)
+    if (tagged?.[1]?.trim()) return tagged[1].replace(/^\n+/, "").replace(/\s+$/, "")
+
+    const lines = text.split("\n")
+    const headingTest = (line: string) => {
+      const compact = line.trim()
+      if (!compact || compact.length > 220) return false
+      return (
+        /\(STORYTELLING SCRIPT\)/i.test(compact) ||
+        /\bSTORYTELLING SCRIPT\b/i.test(compact) ||
+        /FULL WORD-FOR-WORD SCRIPT/i.test(compact) ||
+        /पूर्ण शब्द-प्रति-शब्द कथा वाचन लिपि/.test(compact) ||
+        /पूर्ण शब्द-दर-शब्द स्क्रिप्ट/.test(compact) ||
+        /कथात्मक स्क्रिप्ट/.test(compact) ||
+        /कहानी की स्क्रिप्ट/.test(compact) ||
+        /(?:PART|STEP|भाग)\s*11\b/i.test(compact)
+      )
+    }
+    const endTest = (line: string) => {
+      const compact = line.trim()
+      if (!compact || compact.length > 220) return false
+      return (
+        /(?:PART|STEP|भाग)\s*12\b/i.test(compact) ||
+        /\bSTORYBOARD\b/i.test(compact) ||
+        /VIDEO OUTLINE/i.test(compact) ||
+        /वीडियो रूपरेखा/.test(compact) ||
+        /भिडियो रूपरेखा/.test(compact)
+      )
+    }
+
+    // Prefer the line that is specifically Part 11 of (STORYTELLING SCRIPT)
+    let start = lines.findIndex((line) => /\(STORYTELLING SCRIPT\)/i.test(line) && line.trim().length < 220)
+    if (start < 0) start = lines.findIndex(headingTest)
+    if (start < 0) return ""
+
+    let end = lines.findIndex((line, index) => index > start && endTest(line))
+    const body = (end > start ? lines.slice(start + 1, end) : lines.slice(start + 1)).join("\n")
+    return body.replace(/^\n+/, "").replace(/\s+$/, "")
   }
 
   function extractPart11ToStoryWindow() {
     const packageText = result?.text || ""
     const script = extractPart11(packageText)
     if (!script) {
-      setStatus("Part 11 was not found in the YouTube package. Make sure the first window has PART 11 above PART 12.")
+      setStatus("Could not find Part 11 (STORYTELLING SCRIPT) in the first window. Look for a heading that contains (STORYTELLING SCRIPT), then Part 12 below it.")
       return
     }
     setStoryText(script)
-    setStatus("Part 11 copied into the second window, identical to the first window.")
+    setStatus("Part 11 (STORYTELLING SCRIPT) copied identically into the second window.")
   }
 
   async function generateVoiceover() {
@@ -477,9 +507,9 @@ export default function CosmosStudio() {
                     <strong>Part 11 storytelling script</strong>
                   </label>
                   <p className="field-hint">
-                    This window stays blank until you press Extract Part 11. That button copies only the Part 11
-                    script from the first window — everything above Part 12 — identically. Voiceover uses only this
-                    window.
+                    This window stays blank until you press Extract Part 11. That copies only Part 11
+                    (STORYTELLING SCRIPT) from the first window — the narration above Part 12 — identically.
+                    Voiceover uses only this window.
                   </p>
                   <button
                     className="secondary voice-play"
