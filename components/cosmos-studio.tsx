@@ -27,6 +27,7 @@ export default function CosmosStudio() {
   const [speaking, setSpeaking] = useState(false)
   const [voiceLoading, setVoiceLoading] = useState(false)
   const [audioUrl, setAudioUrl] = useState("")
+  const [storyText, setStoryText] = useState("")
 
   async function brainstorm() {
     setIdeasLoading(true); setStatus(""); setIdeas([])
@@ -45,6 +46,7 @@ export default function CosmosStudio() {
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || "Generation failed")
       setResult(data)
+      setStoryText(getStorytellingScript(data.text || ""))
     } catch (error) { setStatus(error instanceof Error ? error.message : "Generation failed. Please try again.") } finally { setLoading(false) }
   }
 
@@ -81,9 +83,8 @@ export default function CosmosStudio() {
   }
 
   async function generateVoiceover() {
-    if (!result?.text) return
-    const storytellingScript = getStorytellingScript(result.text)
-    if (!storytellingScript) { setStatus("Add a storytelling script before generating voiceover."); return }
+  if (!storyText.trim()) { setStatus("Add storytelling content in the story window before generating voiceover."); return }
+  const storytellingScript = storyText.trim()
     setVoiceLoading(true); setStatus("")
     try {
       const response = await fetch("/api/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mode: "voiceover", language: voiceLanguage === "hi-IN" ? "Hindi" : voiceLanguage === "ne-NP" ? "Nepali" : "English", script: storytellingScript, voice: voiceLanguage === "hi-IN" ? "Kore" : voiceLanguage === "ne-NP" ? "Puck" : "Kore" }) })
@@ -96,7 +97,7 @@ export default function CosmosStudio() {
     } catch (error) { setStatus(error instanceof Error ? error.message : "Voiceover generation failed.") } finally { setVoiceLoading(false) }
   }
 
-  function openCreator() { setOpen(true); setStatus(""); setResult(null); setAudioUrl("") }
+  function openCreator() { setOpen(true); setStatus(""); setResult(null); setStoryText(""); setAudioUrl("") }
 
   return <main className="shell">
     <nav className="nav"><div className="brand"><span className="mark"><Sparkles size={18} /></span> Cosmos Studio</div><button className="create" onClick={openCreator}>Create new videos <ArrowRight size={15} style={{ verticalAlign: "-2px" }} /></button></nav>
@@ -111,7 +112,8 @@ export default function CosmosStudio() {
       <div className="field"><p className="field-label">Select this package</p><div className="package-options" role="group" aria-label="Select video package" style={{ display: "grid", gap: 8 }}><button type="button" className={packageType === "youtube" ? "package-option active" : "package-option"} style={{ textAlign: "left", padding: "12px 14px", borderRadius: 10, border: "1px solid", borderColor: packageType === "youtube" ? "#16a34a" : "#d7e9e8", background: packageType === "youtube" ? "#eaf9f0" : "white" }} onClick={() => setPackageType("youtube")}>YouTube package<span style={{ display: "block", fontSize: 12, opacity: 0.72 }}>Title, description, tags, SEO, script</span></button><button type="button" className={packageType === "lesson" ? "package-option active" : "package-option"} style={{ textAlign: "left", padding: "12px 14px", borderRadius: 10, border: "1px solid", borderColor: packageType === "lesson" ? "#16a34a" : "#d7e9e8", background: packageType === "lesson" ? "#eaf9f0" : "white" }} onClick={() => setPackageType("lesson")}>Classroom lesson<span style={{ display: "block", fontSize: 12, opacity: 0.72 }}>Simple teaching flow and review questions</span></button><button type="button" className={packageType === "shorts" ? "package-option active" : "package-option"} style={{ textAlign: "left", padding: "12px 14px", borderRadius: 10, border: "1px solid", borderColor: packageType === "shorts" ? "#16a34a" : "#d7e9e8", background: packageType === "shorts" ? "#eaf9f0" : "white" }} onClick={() => setPackageType("shorts")}>Short video<span style={{ display: "block", fontSize: 12, opacity: 0.72 }}>Fast hook and concise narration</span></button></div></div>
       <button className="generate" onClick={generate} disabled={loading || topic.trim().length < 3}>{loading ? "Generating your package..." : "Generate YouTube package"}</button>
       {status && <p className="status" role="status">{status}</p>}
-      {result && <div className="result"><div className="result-meta"><span>Generated with {result.model}</span>{result.notice && <span>{result.notice}</span>}</div><label htmlFor="youtube-package">Editable YouTube package (landscape workspace)</label><textarea id="youtube-package" className="package-editor" style={{ minHeight: 420, width: "100%", resize: "vertical" }} value={result.text} onChange={(event) => setResult({ ...result, text: event.target.value })} rows={18} />
+      {result && <div className="result"><div className="result-meta"><span>Generated with {result.model}</span>{result.notice && <span>{result.notice}</span>}</div><label htmlFor="youtube-package">Editable YouTube package (landscape workspace)</label><textarea id="youtube-package" className="package-editor" style={{ minHeight: 420, width: "100%", resize: "vertical" }} value={result.text} onChange={(event) => { const text = event.target.value; setResult({ ...result, text }); setStoryText(getStorytellingScript(text)) }} rows={18} />
+        <div className="story-window" style={{ marginTop: 18, padding: 18, border: "2px solid #b7ded1", borderRadius: 14, background: "#f4fbf7" }}><label htmlFor="story-window"><strong>Storytelling and student questions</strong></label><p className="field-hint">This separate window contains the story and questions copied from the YouTube package. Edit it freely; voiceover uses only this window.</p><textarea id="story-window" className="package-editor" style={{ minHeight: 360, width: "100%", resize: "vertical", marginTop: 10 }} value={storyText} onChange={(event) => setStoryText(event.target.value)} aria-describedby="story-window-help" /><span id="story-window-help" className="sr-only">Only this storytelling window is sent to voiceover generation.</span></div>
         <div className="voiceover"><div><p className="field-label">Generate voiceover</p><p className="field-hint">Only the storytelling script is sent to audio. Titles, tags, SEO, and headings are not read aloud.</p></div><div className="voice-buttons">{voiceLanguages.map((voice) => <button key={voice.code} type="button" className={voiceLanguage === voice.code ? "voice active" : "voice"} onClick={() => setVoiceLanguage(voice.code)}>{voice.label}</button>)}</div><div className="voice-actions"><button className="secondary voice-play" type="button" onClick={generateVoiceover} disabled={voiceLoading}><Volume2 size={16} /> {voiceLoading ? "Creating audio..." : "Generate voiceover audio"}</button><button className="secondary voice-play" type="button" onClick={speaking ? stopSpeaking : speakScript}><Play size={16} /> {speaking ? "Stop preview" : "Preview in browser"}</button>{audioUrl && <><audio controls src={audioUrl} aria-label="Generated voiceover audio" /><a className="secondary voice-play" href={audioUrl} download={`cosmos-voiceover-${voiceLanguage}.wav`}>Download voiceover</a></>}<span className="field-hint">Gemini creates a WAV audio file using the selected language voice.</span></div><div className="external-tts" style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid #d7e9e8" }}><p className="field-label">Free external TTS options</p><p className="field-hint">These services are separate websites. We copy only your storytelling script, open the tool, and you download the audio there.</p><div className="voice-actions"><button className="secondary voice-play" type="button" onClick={() => openExternalTts("https://huggingface.co/spaces/hexgrad/Kokoro-TTS", "Kokoro TTS")}>Open Kokoro TTS</button><button className="secondary voice-play" type="button" onClick={() => openExternalTts("https://huggingface.co/spaces/SWivid/F5-TTS", "F5-TTS")}>Open F5-TTS</button><button className="secondary voice-play" type="button" onClick={() => openExternalTts("https://ttsmp3.com/", "TTSMP3")}>Open free TTS</button></div></div></div>
       </div>}
     </section></div>}
