@@ -50,10 +50,9 @@ export default function CosmosStudio() {
       const response = await fetch("/api/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ topic, language, gradeLevel, length, packageType }) })
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || "Generation failed")
-      const storyOnly = getStorytellingScript(data.text || "")
       setResult(data)
-      setStoryText(storyOnly)
-      if (!storyOnly) setStatus("Part 11 storytelling script was not found. The second window will remain empty until Part 11 is generated.")
+      setStoryText("")
+      setStatus("Package ready. Click Extract Part 11 storytelling script to fill the second window.")
     } catch (error) { setStatus(error instanceof Error ? error.message : "Generation failed. Please try again.") } finally { setLoading(false) }
   }
 
@@ -75,13 +74,13 @@ export default function CosmosStudio() {
   }
 
   function getStorytellingScript(packageText: string) {
-    // Deliberately copy one block only: Part 11 / section 11 through the next numbered section.
     const lines = packageText.replace(/\r/g, "").split("\n")
-    const start = lines.findIndex((line) => /(?:^|\s)(?:PART\s*11|भाग\s*11|SECTION\s*11|खंड\s*11|11\s*[.)·—:-])/i.test(line))
+    const part11Pattern = /(?:PART|SECTION|भाग|खंड)\s*11\b|^\s*11\s*[.)·—:-]/i
+    const start = lines.findIndex((line) => part11Pattern.test(line))
     if (start < 0) return ""
     const content: string[] = []
     for (const line of lines.slice(start + 1)) {
-      if (/^\s*(?:PART|भाग|SECTION|खंड)\s*\d+\b/i.test(line) || /^\s*\d+\s*[.)·—:-]\s*/.test(line)) break
+      if (/^\s*(?:(?:PART|SECTION|भाग|खंड)\s*\d+\b|\d+\s*[.)·—:-])\s*/i.test(line)) break
       if (/^\s*(?:QUESTIONS|प्रश्न|CALL TO ACTION|आह्वान|TITLE|शीर्षक|DESCRIPTION|विवरण|TAGS|टैग|SEO|VIDEO OUTLINE|वीडियो रूपरेखा|MASTER PROMPT)\b/i.test(line)) break
       content.push(line)
     }
@@ -120,7 +119,7 @@ export default function CosmosStudio() {
   function openVisuals() { setOpen(false); setVisualsOpen(true); searchVisuals() }
   function extractStorytellingScript() {
     setStoryText("")
-    const source = result?.text || ""
+    const source = (document.getElementById("youtube-package") as HTMLTextAreaElement | null)?.value || result?.text || ""
     const extracted = getStorytellingScript(source)
     if (!extracted) {
       setStatus("No Part 11 block found. Add a line beginning with PART 11, then click Extract again.")
