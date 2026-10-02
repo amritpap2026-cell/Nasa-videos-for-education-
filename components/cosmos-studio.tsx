@@ -62,6 +62,19 @@ export default function CosmosStudio() {
 
   function stopSpeaking() { window.speechSynthesis?.cancel(); setSpeaking(false) }
 
+  async function openExternalTts(url: string, name: string) {
+    const story = result?.text ? getStorytellingScript(result.text) : ""
+    if (!story) { setStatus("Generate a package with a storytelling script first."); return }
+    try {
+      await navigator.clipboard.writeText(story)
+      window.open(url, "_blank", "noopener,noreferrer")
+      setStatus(`${name} opened. The storytelling script was copied; paste it into the voice tool.`)
+    } catch {
+      setStatus(`Open ${name}, then copy and paste only the storytelling script.`)
+      window.open(url, "_blank", "noopener,noreferrer")
+    }
+  }
+
   function getStorytellingScript(packageText: string) {
     const match = packageText.match(/(?:STORYTELLING SCRIPT|STORY SCRIPT|कहानी की स्क्रिप्ट|कथात्मक स्क्रिप्ट|कथा स्क्रिप्ट|कथन स्क्रिप्ट)\s*:\s*([\s\S]*?)(?=\n\s*(?:TITLE|शीर्षक|DESCRIPTION|विवरण|TAGS|टैग|SEO|VIDEO OUTLINE|वीडियो रूपरेखा|CALL TO ACTION|आह्वान|$))/i)
     return (match?.[1] || packageText).trim()
@@ -99,7 +112,7 @@ export default function CosmosStudio() {
       <button className="generate" onClick={generate} disabled={loading || topic.trim().length < 3}>{loading ? "Generating your package..." : "Generate YouTube package"}</button>
       {status && <p className="status" role="status">{status}</p>}
       {result && <div className="result"><div className="result-meta"><span>Generated with {result.model}</span>{result.notice && <span>{result.notice}</span>}</div><label htmlFor="youtube-package">Editable YouTube package (landscape workspace)</label><textarea id="youtube-package" className="package-editor" style={{ minHeight: 420, width: "100%", resize: "vertical" }} value={result.text} onChange={(event) => setResult({ ...result, text: event.target.value })} rows={18} />
-        <div className="voiceover"><div><p className="field-label">Generate voiceover</p><p className="field-hint">Only the storytelling script is sent to audio. Titles, tags, SEO, and headings are not read aloud.</p></div><div className="voice-buttons">{voiceLanguages.map((voice) => <button key={voice.code} type="button" className={voiceLanguage === voice.code ? "voice active" : "voice"} onClick={() => setVoiceLanguage(voice.code)}>{voice.label}</button>)}</div><div className="voice-actions"><button className="secondary voice-play" type="button" onClick={generateVoiceover} disabled={voiceLoading}><Volume2 size={16} /> {voiceLoading ? "Creating audio..." : "Generate voiceover audio"}</button><button className="secondary voice-play" type="button" onClick={speaking ? stopSpeaking : speakScript}><Play size={16} /> {speaking ? "Stop preview" : "Preview in browser"}</button>{audioUrl && <><audio controls src={audioUrl} aria-label="Generated voiceover audio" /><a className="secondary voice-play" href={audioUrl} download={`cosmos-voiceover-${voiceLanguage}.wav`}>Download voiceover</a></>}<span className="field-hint">Gemini creates a WAV audio file using the selected language voice.</span></div></div>
+        <div className="voiceover"><div><p className="field-label">Generate voiceover</p><p className="field-hint">Only the storytelling script is sent to audio. Titles, tags, SEO, and headings are not read aloud.</p></div><div className="voice-buttons">{voiceLanguages.map((voice) => <button key={voice.code} type="button" className={voiceLanguage === voice.code ? "voice active" : "voice"} onClick={() => setVoiceLanguage(voice.code)}>{voice.label}</button>)}</div><div className="voice-actions"><button className="secondary voice-play" type="button" onClick={generateVoiceover} disabled={voiceLoading}><Volume2 size={16} /> {voiceLoading ? "Creating audio..." : "Generate voiceover audio"}</button><button className="secondary voice-play" type="button" onClick={speaking ? stopSpeaking : speakScript}><Play size={16} /> {speaking ? "Stop preview" : "Preview in browser"}</button>{audioUrl && <><audio controls src={audioUrl} aria-label="Generated voiceover audio" /><a className="secondary voice-play" href={audioUrl} download={`cosmos-voiceover-${voiceLanguage}.wav`}>Download voiceover</a></>}<span className="field-hint">Gemini creates a WAV audio file using the selected language voice.</span></div><div className="external-tts" style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid #d7e9e8" }}><p className="field-label">Free external TTS options</p><p className="field-hint">These services are separate websites. We copy only your storytelling script, open the tool, and you download the audio there.</p><div className="voice-actions"><button className="secondary voice-play" type="button" onClick={() => openExternalTts("https://huggingface.co/spaces/hexgrad/Kokoro-TTS", "Kokoro TTS")}>Open Kokoro TTS</button><button className="secondary voice-play" type="button" onClick={() => openExternalTts("https://huggingface.co/spaces/SWivid/F5-TTS", "F5-TTS")}>Open F5-TTS</button><button className="secondary voice-play" type="button" onClick={() => openExternalTts("https://ttsmp3.com/", "TTSMP3")}>Open free TTS</button></div></div></div>
       </div>}
     </section></div>}
   </main>
