@@ -64,8 +64,11 @@ export default function CosmosStudio() {
   }
 
   function getStorytellingScript(packageText: string) {
-    const match = packageText.match(/(?:पूर्ण शब्द-प्रति-शब्द कथा वाचन लिपि|पूर्ण शब्द-दर-शब्द स्क्रिप्ट|FULL WORD-FOR-WORD SCRIPT|STORYTELLING SCRIPT|STORY SCRIPT|कहानी की स्क्रिप्ट|कथात्मक स्क्रिप्ट|कथा स्क्रिप्ट|कथन स्क्रिप्ट)\s*:?\s*([\s\S]*?)(?=\n\s*(?:TITLE|शीर्षक|DESCRIPTION|विवरण|TAGS|टैग|SEO|VIDEO OUTLINE|वीडियो रूपरेखा|QUESTIONS|प्रश्न|CALL TO ACTION|आह्वान|MASTER PROMPT|$))/i)
-    return (match?.[1] || "").trim()
+    const label = "(?:पूर्ण शब्द-प्रति-शब्द कथा वाचन लिपि(?: \\(STORYTELLING SCRIPT\\))?|पूर्ण शब्द-दर-शब्द स्क्रिप्ट(?: \\(STORYTELLING SCRIPT\\))?|FULL WORD-FOR-WORD SCRIPT(?: \\(STORYTELLING SCRIPT\\))?|STORYTELLING SCRIPT|STORY SCRIPT|कहानी की स्क्रिप्ट|कथात्मक स्क्रिप्ट|कथा स्क्रिप्ट|कथन स्क्रिप्ट)"
+    const match = packageText.match(new RegExp(`${label}\\s*:?\\s*([\\s\\S]*?)(?=\\n\\s*(?:PART\\s*\\d+|TITLE|शीर्षक|DESCRIPTION|विवरण|TAGS|टैग|SEO|VIDEO OUTLINE|वीडियो रूपरेखा|QUESTIONS|प्रश्न|CALL TO ACTION|आह्वान|MASTER PROMPT|$))`, "i"))
+    if (match?.[1]?.trim()) return match[1].trim()
+    const partEleven = packageText.match(/(?:PART|भाग)\\s*11[^\\n]*\\n([\\s\\S]*)/i)
+    return partEleven?.[1]?.trim() || ""
   }
 
   async function generateVoiceover() {
