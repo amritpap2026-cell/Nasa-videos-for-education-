@@ -24,9 +24,9 @@ export default function CosmosStudio() {
   const [ideas, setIdeas] = useState<string[]>([])
   const [ideasLoading, setIdeasLoading] = useState(false)
   const [voiceLanguage, setVoiceLanguage] = useState("en-US")
-  const [speaking, setSpeaking] = useState(false)
   const [voiceLoading, setVoiceLoading] = useState(false)
   const [audioUrl, setAudioUrl] = useState("")
+  const [voiceoverUsed, setVoiceoverUsed] = useState(false)
   const [storyText, setStoryText] = useState("")
 
   async function brainstorm() {
@@ -49,20 +49,6 @@ export default function CosmosStudio() {
       setStoryText(getStorytellingScript(data.text || ""))
     } catch (error) { setStatus(error instanceof Error ? error.message : "Generation failed. Please try again.") } finally { setLoading(false) }
   }
-
-  function speakScript() {
-    if (!result?.text || typeof window === "undefined" || !("speechSynthesis" in window)) { setStatus("Voice playback is not supported in this browser."); return }
-    window.speechSynthesis.cancel()
-    const utterance = new SpeechSynthesisUtterance(result.text)
-    utterance.lang = voiceLanguage
-    utterance.rate = 0.9
-    utterance.onstart = () => setSpeaking(true)
-    utterance.onend = () => setSpeaking(false)
-    utterance.onerror = () => { setSpeaking(false); setStatus("This browser could not start voice playback.") }
-    window.speechSynthesis.speak(utterance)
-  }
-
-  function stopSpeaking() { window.speechSynthesis?.cancel(); setSpeaking(false) }
 
   async function openExternalTts(url: string, name: string) {
     const story = result?.text ? getStorytellingScript(result.text) : ""
@@ -93,11 +79,12 @@ export default function CosmosStudio() {
       const bytes = Uint8Array.from(atob(data.audio), (character) => character.charCodeAt(0))
       if (audioUrl) URL.revokeObjectURL(audioUrl)
       setAudioUrl(URL.createObjectURL(new Blob([bytes], { type: data.mimeType || "audio/wav" })))
-      setStatus("Voiceover created. Play it or download the audio file.")
+      setVoiceoverUsed(false)
+      setStatus("Voiceover created. Listen below, then choose Use this voiceover.")
     } catch (error) { setStatus(error instanceof Error ? error.message : "Voiceover generation failed.") } finally { setVoiceLoading(false) }
   }
 
-  function openCreator() { setOpen(true); setStatus(""); setResult(null); setStoryText(""); setAudioUrl("") }
+  function openCreator() { setOpen(true); setStatus(""); setResult(null); setStoryText(""); setAudioUrl(""); setVoiceoverUsed(false) }
 
   return <main className="shell">
     <nav className="nav"><div className="brand"><span className="mark"><Sparkles size={18} /></span> Cosmos Studio</div><button className="create" onClick={openCreator}>Create new videos <ArrowRight size={15} style={{ verticalAlign: "-2px" }} /></button></nav>
@@ -114,7 +101,7 @@ export default function CosmosStudio() {
       {status && <p className="status" role="status">{status}</p>}
       {result && <div className="result"><div className="result-meta"><span>Generated with {result.model}</span>{result.notice && <span>{result.notice}</span>}</div><label htmlFor="youtube-package">Editable YouTube package (landscape workspace)</label><textarea id="youtube-package" className="package-editor" style={{ minHeight: 420, width: "100%", resize: "vertical" }} value={result.text} onChange={(event) => { const text = event.target.value; setResult({ ...result, text }); setStoryText(getStorytellingScript(text)) }} rows={18} />
         <div className="story-window" style={{ marginTop: 18, padding: 18, border: "2px solid #b7ded1", borderRadius: 14, background: "#f4fbf7" }}><label htmlFor="story-window"><strong>Storytelling and student questions</strong></label><p className="field-hint">This separate window contains the story and questions copied from the YouTube package. Edit it freely; voiceover uses only this window.</p><textarea id="story-window" className="package-editor" style={{ minHeight: 360, width: "100%", resize: "vertical", marginTop: 10 }} value={storyText} onChange={(event) => setStoryText(event.target.value)} aria-describedby="story-window-help" /><span id="story-window-help" className="sr-only">Only this storytelling window is sent to voiceover generation.</span></div>
-        <div className="voiceover"><div><p className="field-label">Generate voiceover</p><p className="field-hint">Only the storytelling script is sent to audio. Titles, tags, SEO, and headings are not read aloud.</p></div><div className="voice-buttons">{voiceLanguages.map((voice) => <button key={voice.code} type="button" className={voiceLanguage === voice.code ? "voice active" : "voice"} onClick={() => setVoiceLanguage(voice.code)}>{voice.label}</button>)}</div><div className="voice-actions"><button className="secondary voice-play" type="button" onClick={generateVoiceover} disabled={voiceLoading}><Volume2 size={16} /> {voiceLoading ? "Creating audio..." : "Generate voiceover audio"}</button><button className="secondary voice-play" type="button" onClick={speaking ? stopSpeaking : speakScript}><Play size={16} /> {speaking ? "Stop preview" : "Preview in browser"}</button>{audioUrl && <><audio controls src={audioUrl} aria-label="Generated voiceover audio" /><a className="secondary voice-play" href={audioUrl} download={`cosmos-voiceover-${voiceLanguage}.wav`}>Download voiceover</a></>}<span className="field-hint">Gemini creates a WAV audio file using the selected language voice.</span></div><div className="external-tts" style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid #d7e9e8" }}><p className="field-label">Free external TTS options</p><p className="field-hint">These services are separate websites. We copy only your storytelling script, open the tool, and you download the audio there.</p><div className="voice-actions"><button className="secondary voice-play" type="button" onClick={() => openExternalTts("https://huggingface.co/spaces/hexgrad/Kokoro-TTS", "Kokoro TTS")}>Open Kokoro TTS</button><button className="secondary voice-play" type="button" onClick={() => openExternalTts("https://huggingface.co/spaces/SWivid/F5-TTS", "F5-TTS")}>Open F5-TTS</button><button className="secondary voice-play" type="button" onClick={() => openExternalTts("https://ttsmp3.com/", "TTSMP3")}>Open free TTS</button></div></div></div>
+        <div className="voiceover"><div><p className="field-label">Generate voiceover</p><p className="field-hint">Only the storytelling script is sent to audio. Titles, tags, SEO, and headings are not read aloud.</p></div><div className="voice-buttons">{voiceLanguages.map((voice) => <button key={voice.code} type="button" className={voiceLanguage === voice.code ? "voice active" : "voice"} onClick={() => setVoiceLanguage(voice.code)}>{voice.label}</button>)}</div><div className="voice-actions"><button className="secondary voice-play" type="button" onClick={generateVoiceover} disabled={voiceLoading}><Volume2 size={16} /> {voiceLoading ? "Creating audio..." : "Generate voiceover audio"}</button>{audioUrl && <><audio controls src={audioUrl} aria-label="Generated voiceover audio" /><button className="secondary voice-play" type="button" onClick={() => { setVoiceoverUsed(true); setStatus("This voiceover is selected for your video.") }}>{voiceoverUsed ? "Voiceover selected" : "Use this voiceover"}</button><a className="secondary voice-play" href={audioUrl} download={`cosmos-voiceover-${voiceLanguage}.wav`}>Download voiceover</a></>}<span className="field-hint">Listen to the generated cinematic voiceover, then select it or download the WAV file.</span></div><div className="external-tts" style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid #d7e9e8" }}><p className="field-label">Free external TTS options</p><p className="field-hint">These services are separate websites. We copy only your storytelling script, open the tool, and you download the audio there.</p><div className="voice-actions"><button className="secondary voice-play" type="button" onClick={() => openExternalTts("https://huggingface.co/spaces/hexgrad/Kokoro-TTS", "Kokoro TTS")}>Open Kokoro TTS</button><button className="secondary voice-play" type="button" onClick={() => openExternalTts("https://huggingface.co/spaces/SWivid/F5-TTS", "F5-TTS")}>Open F5-TTS</button><button className="secondary voice-play" type="button" onClick={() => openExternalTts("https://ttsmp3.com/", "TTSMP3")}>Open free TTS</button></div></div></div>
       </div>}
     </section></div>}
   </main>
