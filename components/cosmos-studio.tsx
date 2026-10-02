@@ -75,12 +75,17 @@ export default function CosmosStudio() {
   }
 
   function getStorytellingScript(packageText: string) {
-    const normalized = packageText.replace(/\r/g, "")
-    // The second window is intentionally hardcoded to Part 11 only.
-    const part11 = normalized.match(/(?:^|\n)\s*(?:PART\s*11|भाग\s*11|11[.)])[^\n]*(?:\n|$)([\s\S]*?)(?=\n\s*(?:PART|भाग)\s*(?:\d+)|\n\s*(?:QUESTIONS|प्रश्न|CALL TO ACTION|आह्वान|TITLE|शीर्षक|DESCRIPTION|विवरण|TAGS|टैग|SEO|VIDEO OUTLINE|वीडियो रूपरेखा|MASTER PROMPT)\b|$)/i)
-    if (!part11?.[1]) return ""
-    const storyOnly = part11[1].replace(/^(?:पूर्ण शब्द-प्रति-शब्द कथा वाचन लिपि|पूर्ण शब्द-दर-शब्द स्क्रिप्ट|FULL WORD-FOR-WORD SCRIPT|STORYTELLING SCRIPT)\s*[:：]?\s*/i, "")
-    return cleanVoiceText(storyOnly)
+    // Only this explicit Part 11 block can enter the second window.
+    const lines = packageText.replace(/\r/g, "").split("\n")
+    const start = lines.findIndex((line) => /PART\s*11|भाग\s*11/i.test(line))
+    if (start === -1) return ""
+    const content: string[] = []
+    for (const line of lines.slice(start + 1)) {
+      if (/^\s*(?:PART|भाग)\s*\d+(?:\s|[-—:：.)]|$)/i.test(line)) break
+      if (/^\s*(?:QUESTIONS|प्रश्न|CALL TO ACTION|आह्वान|TITLE|शीर्षक|DESCRIPTION|विवरण|TAGS|टैग|SEO|VIDEO OUTLINE|वीडियो रूपरेखा|MASTER PROMPT)\b/i.test(line)) break
+      content.push(line)
+    }
+    return cleanVoiceText(content.join("\n").replace(/^(?:पूर्ण शब्द-प्रति-शब्द कथा वाचन लिपि|पूर्ण शब्द-दर-शब्द स्क्रिप्ट|FULL WORD-FOR-WORD SCRIPT|STORYTELLING SCRIPT)\s*[:：]?\s*/i, ""))
   }
 
   async function generateVoiceover() {
