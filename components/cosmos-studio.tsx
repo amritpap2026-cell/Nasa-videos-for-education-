@@ -17,6 +17,7 @@ export default function CosmosStudio() {
   const [language, setLanguage] = useState("English")
   const [gradeLevel, setGradeLevel] = useState("Class 8–10")
   const [length, setLength] = useState("0-10")
+  const [packageType, setPackageType] = useState("youtube")
   const [loading, setLoading] = useState(false)
   const [status, setStatus] = useState("")
   const [result, setResult] = useState<Result | null>(null)
@@ -28,7 +29,7 @@ export default function CosmosStudio() {
   async function brainstorm() {
     setIdeasLoading(true); setStatus(""); setIdeas([])
     try {
-      const response = await fetch("/api/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ topic, language, gradeLevel, length, mode: "brainstorm" }) })
+      const response = await fetch("/api/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ topic, language, gradeLevel, length, packageType, mode: "brainstorm" }) })
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || "Topic search failed")
       setIdeas(Array.isArray(data.topics) ? data.topics : [])
@@ -38,7 +39,7 @@ export default function CosmosStudio() {
   async function generate() {
     setLoading(true); setStatus(""); setResult(null)
     try {
-      const response = await fetch("/api/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ topic, language, gradeLevel, length }) })
+      const response = await fetch("/api/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ topic, language, gradeLevel, length, packageType }) })
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || "Generation failed")
       setResult(data)
@@ -70,6 +71,7 @@ export default function CosmosStudio() {
       <div className="field"><label htmlFor="grade-level">Student level</label><select id="grade-level" value={gradeLevel} onChange={(event) => setGradeLevel(event.target.value)}><option>Class 8–10</option><option>Class 11–12</option><option>Class 8–12</option></select><p className="field-hint">Simple explanations, examples, and questions for school learners.</p></div>
       <div className="field"><label htmlFor="length">Video length (minutes)</label><select id="length" value={length} onChange={(event) => setLength(event.target.value)}><option value="0-5">0–5</option><option value="0-10">0–10</option><option value="0-15">0–15</option><option value="0-30">0–30</option><option value="0-60">0–60</option></select></div>
       {ideas.length > 0 && <div className="ideas"><p className="field-label">Select a YouTube idea</p>{ideas.map((idea) => <button className="idea" key={idea} type="button" onClick={() => setTopic(idea)}>{idea}<ArrowRight size={14} /></button>)}</div>}
+      <div className="field"><p className="field-label">Select this package</p><div className="package-options" role="group" aria-label="Select video package" style={{ display: "grid", gap: 8 }}><button type="button" className={packageType === "youtube" ? "package-option active" : "package-option"} style={{ textAlign: "left", padding: "12px 14px", borderRadius: 10, border: "1px solid", borderColor: packageType === "youtube" ? "#16a34a" : "#d7e9e8", background: packageType === "youtube" ? "#eaf9f0" : "white" }} onClick={() => setPackageType("youtube")}>YouTube package<span style={{ display: "block", fontSize: 12, opacity: 0.72 }}>Title, description, tags, SEO, script</span></button><button type="button" className={packageType === "lesson" ? "package-option active" : "package-option"} style={{ textAlign: "left", padding: "12px 14px", borderRadius: 10, border: "1px solid", borderColor: packageType === "lesson" ? "#16a34a" : "#d7e9e8", background: packageType === "lesson" ? "#eaf9f0" : "white" }} onClick={() => setPackageType("lesson")}>Classroom lesson<span style={{ display: "block", fontSize: 12, opacity: 0.72 }}>Simple teaching flow and review questions</span></button><button type="button" className={packageType === "shorts" ? "package-option active" : "package-option"} style={{ textAlign: "left", padding: "12px 14px", borderRadius: 10, border: "1px solid", borderColor: packageType === "shorts" ? "#16a34a" : "#d7e9e8", background: packageType === "shorts" ? "#eaf9f0" : "white" }} onClick={() => setPackageType("shorts")}>Short video<span style={{ display: "block", fontSize: 12, opacity: 0.72 }}>Fast hook and concise narration</span></button></div></div>
       <button className="generate" onClick={generate} disabled={loading || topic.trim().length < 3}>{loading ? "Generating your package..." : "Generate YouTube package"}</button>
       {status && <p className="status" role="status">{status}</p>}
       {result && <div className="result"><div className="result-meta"><span>Generated with {result.model}</span>{result.notice && <span>{result.notice}</span>}</div><label htmlFor="youtube-package">Editable YouTube package</label><textarea id="youtube-package" className="package-editor" value={result.text} onChange={(event) => setResult({ ...result, text: event.target.value })} rows={18} />
