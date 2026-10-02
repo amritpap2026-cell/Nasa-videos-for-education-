@@ -77,7 +77,7 @@ export default function CosmosStudio() {
   function getStorytellingScript(packageText: string) {
     const normalized = packageText.replace(/\r/g, "")
     // The second window is intentionally hardcoded to Part 11 only.
-    const part11 = normalized.match(/(?:^|\n)\s*(?:PART\s*11|भाग\s*11|11[.)])[^\n]*\n([\s\S]*?)(?=\n\s*(?:PART\s*12|भाग\s*12|12[.)]|QUESTIONS|प्रश्न|CALL TO ACTION|आह्वान|TITLE|शीर्षक|DESCRIPTION|विवरण|TAGS|टैग|SEO|VIDEO OUTLINE|वीडियो रूपरेखा|MASTER PROMPT)\b|$)/i)
+    const part11 = normalized.match(/(?:^|\n)\s*(?:PART\s*11|भाग\s*11|11[.)])[^\n]*(?:\n|$)([\s\S]*?)(?=\n\s*(?:PART|भाग)\s*(?:\d+)|\n\s*(?:QUESTIONS|प्रश्न|CALL TO ACTION|आह्वान|TITLE|शीर्षक|DESCRIPTION|विवरण|TAGS|टैग|SEO|VIDEO OUTLINE|वीडियो रूपरेखा|MASTER PROMPT)\b|$)/i)
     if (!part11?.[1]) return ""
     const storyOnly = part11[1].replace(/^(?:पूर्ण शब्द-प्रति-शब्द कथा वाचन लिपि|पूर्ण शब्द-दर-शब्द स्क्रिप्ट|FULL WORD-FOR-WORD SCRIPT|STORYTELLING SCRIPT)\s*[:：]?\s*/i, "")
     return cleanVoiceText(storyOnly)
