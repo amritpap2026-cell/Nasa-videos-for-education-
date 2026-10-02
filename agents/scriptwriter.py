@@ -9,9 +9,9 @@ import urllib.request
 from dataclasses import asdict, dataclass
 from typing import Any
 
-from config import GEMINI_API_URL, model_candidates
+from config1 import GEMINI_API_URL, candidates
 
-GEMINI_MODELS = model_candidates()
+GEMINI_MODELS = candidates("scriptwriter")
 GEMINI_URL = GEMINI_API_URL
 
 

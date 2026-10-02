@@ -4,11 +4,9 @@ from pathlib import Path
 
 # Natural, expressive Edge Neural voices selected for educational storytelling.
 # These are public Edge-TTS voice IDs; no provider API key is required.
-VOICE_MAP = {
-    "English": "en-US-AndrewMultilingualNeural",
-    "Hindi": "hi-IN-MadhurNeural",
-    "Nepali": "ne-NP-HemkalaNeural",
-}
+from config1 import EDGE_TTS_VOICES
+
+VOICE_MAP = EDGE_TTS_VOICES
 
 LANGUAGE_SETTINGS = {
     "English": {"rate": "-8%", "pitch": "+0Hz", "volume": "+0%"},
