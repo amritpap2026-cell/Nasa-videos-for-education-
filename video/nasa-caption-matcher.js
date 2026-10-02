@@ -4,34 +4,86 @@
  * for title, description, script, and scene/visual requirements.
  */
 
+async function fetchJson(url, label) {
+  const response = await fetch(url)
+  if (!response.ok) {
+    throw new Error(`${label} failed: ${response.status}`)
+  }
+  return response.json()
+}
+
+function collectUrls(value, results = []) {
+  if (!value) return results
+
+  if (typeof value === "string") {
+    if (/\.(?:srt|vtt)(?:$|[?#])/i.test(value)) results.push(value)
+    return results
+  }
+
+  if (Array.isArray(value)) {
+    for (const item of value) collectUrls(item, results)
+    return results
+  }
+
+  if (typeof value === "object") {
+    for (const [key, item] of Object.entries(value)) {
+      if (/caption|subtitle|transcript/i.test(key)) collectUrls(item, results)
+      else if (typeof item === "object") collectUrls(item, results)
+      else if (typeof item === "string" && /\.(?:srt|vtt)(?:$|[?#])/i.test(item)) {
+        results.push(item)
+      }
+    }
+  }
+
+  return results
+}
+
 async function getNasaCaptions(nasaId) {
   if (!nasaId) throw new Error("nasaId is required")
 
-  const locationRes = await fetch(
-    `https://images-api.nasa.gov/captions/${encodeURIComponent(nasaId)}`
+  // NASA documents /captions/{nasa_id}, but some library assets return 404
+  // there even though the downloadable detail page exposes captions.
+  // Resolve the real caption file from the asset manifest as a fallback.
+  const captionsEndpoint = `https://images-api.nasa.gov/captions/${encodeURIComponent(nasaId)}`
+  const locationRes = await fetch(captionsEndpoint)
+
+  if (locationRes.ok) {
+    const locationData = await locationRes.json()
+    const captionUrl = locationData.location
+
+    if (captionUrl) {
+      const captionRes = await fetch(captionUrl)
+      if (captionRes.ok) {
+        return {
+          nasaId,
+          captionUrl,
+          text: await captionRes.text(),
+        }
+      }
+    }
+  }
+
+  const manifest = await fetchJson(
+    `https://images-api.nasa.gov/asset/${encodeURIComponent(nasaId)}`,
+    "NASA asset manifest lookup"
   )
 
-  if (!locationRes.ok) {
-    throw new Error(`NASA captions lookup failed: ${locationRes.status}`)
+  const captionUrls = [...new Set(collectUrls(manifest))]
+  if (!captionUrls.length) {
+    throw new Error(`No downloadable captions found in NASA asset manifest: ${nasaId}`)
   }
 
-  const locationData = await locationRes.json()
-  const captionUrl = locationData.location
+  for (const captionUrl of captionUrls) {
+    const captionRes = await fetch(captionUrl)
+    if (!captionRes.ok) continue
 
-  if (!captionUrl) {
-    throw new Error(`No captions available for NASA asset: ${nasaId}`)
+    const text = await captionRes.text()
+    if (/-->/.test(text)) {
+      return { nasaId, captionUrl, text }
+    }
   }
 
-  const captionRes = await fetch(captionUrl)
-  if (!captionRes.ok) {
-    throw new Error(`NASA caption file fetch failed: ${captionRes.status}`)
-  }
-
-  return {
-    nasaId,
-    captionUrl,
-    text: await captionRes.text(),
-  }
+  throw new Error(`NASA caption files were found but none could be read: ${nasaId}`)
 }
 
 function timestampToSeconds(value) {
@@ -70,7 +122,11 @@ function parseCaptionFile(text) {
     const cleanTime = (value) => value.split(/\s+/)[0]
     const start = timestampToSeconds(cleanTime(startRaw))
     const end = timestampToSeconds(cleanTime(endRaw))
-    const cueText = lines.slice(timingIndex + 1).join(" ").replace(/<[^>]+>/g, "").trim()
+    const cueText = lines
+      .slice(timingIndex + 1)
+      .join(" ")
+      .replace(/<[^>]+>/g, "")
+      .trim()
 
     if (!cueText || end <= start) continue
 
