@@ -134,10 +134,41 @@ MASTER PROMPT STYLE: ${sectionNote}`
 
 export async function POST(request: Request) {
   try {
-    const { topic, language = "English", gradeLevel = "Class 8–12", length = "0-10", mode = "package" } = await request.json()
-    if (typeof topic !== "string" || topic.length > 300) return NextResponse.json({ error: "Please enter a topic no longer than 300 characters." }, { status: 400 })
+    const requestBody = await request.json()
+    const { topic, language = "English", gradeLevel = "Class 8–12", length = "0-10", mode = "package" } = requestBody
+    if (mode !== "voiceover" && (typeof topic !== "string" || topic.length > 300)) return NextResponse.json({ error: "Please enter a topic no longer than 300 characters." }, { status: 400 })
     const normalizedLanguage = ["English", "Hindi", "Nepali"].includes(language) ? language : "English"
     const key = (process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY || "").trim()
+
+    if (mode === "voiceover") {
+      if (!key) return NextResponse.json({ error: "GEMINI_API_KEY is not configured for voiceover." }, { status: 503 })
+      const script = typeof requestBody?.script === "string" ? requestBody.script.trim() : ""
+      const voice = typeof requestBody?.voice === "string" ? requestBody.voice : "Kore"
+      if (!script) return NextResponse.json({ error: "Add a script before generating voiceover." }, { status: 400 })
+      const models = await getAvailableModels(key)
+      const voiceModels = ["gemini-2.5-flash-preview-tts", "gemini-2.5-flash-tts", ...models.filter((model: string) => model.includes("tts"))]
+      for (const model of [...new Set(voiceModels)]) {
+        const controller = new AbortController()
+        const timeout = setTimeout(() => controller.abort(), requestTimeoutMs)
+        try {
+          const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ contents: [{ parts: [{ text: script }] }], generationConfig: { responseModalities: ["AUDIO"], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } } } }),
+            signal: controller.signal,
+          })
+          if (!response.ok) continue
+          const data = await response.json()
+          const audio = data?.candidates?.[0]?.content?.parts?.find((part: { inlineData?: { data?: string; mimeType?: string } }) => part.inlineData?.data)?.inlineData
+          if (audio?.data) return NextResponse.json({ audio: audio.data, mimeType: audio.mimeType || "audio/wav", model })
+        } catch {
+          // Try the next available Gemini TTS model.
+        } finally {
+          clearTimeout(timeout)
+        }
+      }
+      return NextResponse.json({ error: "Gemini voiceover models are unavailable. Check that your Gemini API key has access to a TTS model." }, { status: 503 })
+    }
 
     if (mode === "brainstorm") {
       if (topic.trim().length < 2) return NextResponse.json({ error: "Enter a few words so we can brainstorm around them." }, { status: 400 })

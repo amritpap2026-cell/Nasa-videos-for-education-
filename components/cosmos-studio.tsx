@@ -25,6 +25,8 @@ export default function CosmosStudio() {
   const [ideasLoading, setIdeasLoading] = useState(false)
   const [voiceLanguage, setVoiceLanguage] = useState("en-US")
   const [speaking, setSpeaking] = useState(false)
+  const [voiceLoading, setVoiceLoading] = useState(false)
+  const [audioUrl, setAudioUrl] = useState("")
 
   async function brainstorm() {
     setIdeasLoading(true); setStatus(""); setIdeas([])
@@ -59,7 +61,22 @@ export default function CosmosStudio() {
   }
 
   function stopSpeaking() { window.speechSynthesis?.cancel(); setSpeaking(false) }
-  function openCreator() { setOpen(true); setStatus(""); setResult(null) }
+
+  async function generateVoiceover() {
+    if (!result?.text) return
+    setVoiceLoading(true); setStatus("")
+    try {
+      const response = await fetch("/api/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mode: "voiceover", script: result.text, voice: voiceLanguage === "hi-IN" ? "Kore" : voiceLanguage === "ne-NP" ? "Puck" : "Kore" }) })
+      const data = await response.json()
+      if (!response.ok || !data.audio) throw new Error(data.error || "Voiceover generation failed")
+      const bytes = Uint8Array.from(atob(data.audio), (character) => character.charCodeAt(0))
+      if (audioUrl) URL.revokeObjectURL(audioUrl)
+      setAudioUrl(URL.createObjectURL(new Blob([bytes], { type: data.mimeType || "audio/wav" })))
+      setStatus("Voiceover created. Play it or download the audio file.")
+    } catch (error) { setStatus(error instanceof Error ? error.message : "Voiceover generation failed.") } finally { setVoiceLoading(false) }
+  }
+
+  function openCreator() { setOpen(true); setStatus(""); setResult(null); setAudioUrl("") }
 
   return <main className="shell">
     <nav className="nav"><div className="brand"><span className="mark"><Sparkles size={18} /></span> Cosmos Studio</div><button className="create" onClick={openCreator}>Create new videos <ArrowRight size={15} style={{ verticalAlign: "-2px" }} /></button></nav>
@@ -75,7 +92,7 @@ export default function CosmosStudio() {
       <button className="generate" onClick={generate} disabled={loading || topic.trim().length < 3}>{loading ? "Generating your package..." : "Generate YouTube package"}</button>
       {status && <p className="status" role="status">{status}</p>}
       {result && <div className="result"><div className="result-meta"><span>Generated with {result.model}</span>{result.notice && <span>{result.notice}</span>}</div><label htmlFor="youtube-package">Editable YouTube package</label><textarea id="youtube-package" className="package-editor" value={result.text} onChange={(event) => setResult({ ...result, text: event.target.value })} rows={18} />
-        <div className="voiceover"><div><p className="field-label">Generate voiceover</p><p className="field-hint">Free, unlimited browser voice playback. Select English, Hindi, or Nepali.</p></div><div className="voice-buttons">{voiceLanguages.map((voice) => <button key={voice.code} type="button" className={voiceLanguage === voice.code ? "voice active" : "voice"} onClick={() => setVoiceLanguage(voice.code)}>{voice.label}</button>)}</div><div className="voice-actions"><button className="secondary voice-play" type="button" onClick={speaking ? stopSpeaking : speakScript}><Volume2 size={16} /> {speaking ? "Stop voiceover" : "Generate voiceover"}</button><span className="field-hint">Uses your device&apos;s installed free TTS voice; no paid API required.</span></div></div>
+        <div className="voiceover"><div><p className="field-label">Generate voiceover</p><p className="field-hint">Free, unlimited browser voice playback. Select English, Hindi, or Nepali.</p></div><div className="voice-buttons">{voiceLanguages.map((voice) => <button key={voice.code} type="button" className={voiceLanguage === voice.code ? "voice active" : "voice"} onClick={() => setVoiceLanguage(voice.code)}>{voice.label}</button>)}</div><div className="voice-actions"><button className="secondary voice-play" type="button" onClick={generateVoiceover} disabled={voiceLoading}><Volume2 size={16} /> {voiceLoading ? "Creating audio..." : "Generate voiceover audio"}</button><button className="secondary voice-play" type="button" onClick={speaking ? stopSpeaking : speakScript}><Play size={16} /> {speaking ? "Stop preview" : "Preview in browser"}</button>{audioUrl && <><audio controls src={audioUrl} aria-label="Generated voiceover audio" /><a className="secondary voice-play" href={audioUrl} download={`cosmos-voiceover-${voiceLanguage}.wav`}>Download voiceover</a></>}<span className="field-hint">Gemini creates a WAV audio file using the selected language voice.</span></div></div>
       </div>}
     </section></div>}
   </main>
