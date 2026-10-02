@@ -56,33 +56,70 @@ function createFallbackTopics(topic: string, language: string) {
 
 async function createFallbackPackage(topic: string, language: string, gradeLevel: string, length: string) {
   const safeTopic = topic.trim() || "NASA and space exploration"
-  const studentNote = `\nSTUDENT LEVEL: ${gradeLevel}. Explain concepts clearly for this school level, using familiar examples, short definitions, and 3 simple review questions.`
-  const languageNote = language === "English" ? "" : `\nLANGUAGE NOTE: Write narration and on-screen text in ${language}.`
   let styleGuide = ""
   try {
     const response = await fetch(masterPromptUrl, { signal: AbortSignal.timeout(8_000), cache: "no-store" })
     if (response.ok) styleGuide = await response.text()
   } catch {
-    // The local structure below remains available when GitHub is unreachable.
+    // Keep the local package available when GitHub is unreachable.
   }
 
-  const guideSections = [...styleGuide.matchAll(/^#{1,3}\\s+(.+)$/gm)]
-    .map((match) => match[1].trim())
-    .filter(Boolean)
-    .slice(0, 12)
-  const sectionNote = guideSections.length
-    ? `\\nMASTER PROMPT SECTIONS APPLIED: ${guideSections.join(" | ")}`
-    : "\\nMASTER PROMPT STYLE APPLIED: hook, educational clarity, SEO metadata, responsible NASA context, and duration-matched outline."
+  const guideSections = [...styleGuide.matchAll(/^#{1,3}\\s+(.+)$/gm)].map((match) => match[1].trim()).filter(Boolean).slice(0, 12)
+  const sectionNote = guideSections.length ? guideSections.join(" | ") : "hook, educational clarity, SEO metadata, responsible NASA context, and duration-matched outline"
+  if (language === "Hindi") {
+    return `शीर्षक: ${safeTopic} | NASA की कहानी जो आपको जाननी चाहिए
 
+विवरण: ${safeTopic} को सरल और सटीक अंतरिक्ष शिक्षा के माध्यम से समझिए। इस वीडियो में विज्ञान, प्रमाण, मिशन का संदर्भ और पृथ्वी के भविष्य के लिए इसका महत्व बताया गया है। यह Cosmos का स्वतंत्र शैक्षिक वीडियो है और NASA से संबद्ध या समर्थित नहीं है।
+
+टैग: NASA, ${safeTopic}, अंतरिक्ष अन्वेषण, खगोल विज्ञान, ब्रह्मांड, विज्ञान शिक्षा, STEM
+
+SEO कीवर्ड: ${safeTopic}, NASA शिक्षा, अंतरिक्ष विज्ञान, खगोल विज्ञान समझाया गया, ब्रह्मांड तथ्य
+
+वीडियो की अवधि: ${length} मिनट
+कक्षा: ${gradeLevel}. कठिन शब्दों की सरल परिभाषा, रोज़मर्रा के उदाहरण और 3 छोटे पुनरावृत्ति प्रश्न शामिल करें।
+
+वीडियो रूपरेखा:
+00:00 शुरुआत: हमें ${safeTopic} की परवाह क्यों करनी चाहिए?
+01:00 मुख्य प्रश्न और आवश्यक संदर्भ
+03:00 विज्ञान, प्रमाण और NASA ने क्या सीखा
+06:00 पृथ्वी और भविष्य के अन्वेषण के लिए इसका अर्थ
+08:00 मुख्य बातें और सीखते रहने का निमंत्रण
+
+आह्वान: सटीक और प्रेरक NASA अंतरिक्ष शिक्षा के लिए सदस्यता लें और इसे विद्यार्थियों के साथ साझा करें।
+मास्टर प्रॉम्प्ट शैली: ${sectionNote}`
+  }
+  if (language === "Nepali") {
+    return `शीर्षक: ${safeTopic} | NASA को कथा जुन तपाईंले जान्नुपर्छ
+
+विवरण: ${safeTopic} लाई सरल र सही अन्तरिक्ष शिक्षामार्फत बुझ्नुहोस्। यस भिडियोमा विज्ञान, प्रमाण, मिसनको सन्दर्भ र पृथ्वीको भविष्यका लागि यसको महत्व बताइएको छ। यो Cosmos को स्वतन्त्र शैक्षिक भिडियो हो र NASA सँग सम्बन्धित वा समर्थित छैन।
+
+ट्याग: NASA, ${safeTopic}, अन्तरिक्ष अन्वेषण, खगोल विज्ञान, ब्रह्माण्ड, विज्ञान शिक्षा, STEM
+
+SEO कीवर्ड: ${safeTopic}, NASA शिक्षा, अन्तरिक्ष विज्ञान, खगोल विज्ञान व्याख्या, ब्रह्माण्डका तथ्य
+
+भिडियो अवधि: ${length} मिनेट
+कक्षा: ${gradeLevel}। कठिन शब्दको सरल परिभाषा, दैनिक जीवनका उदाहरण र 3 वटा छोटा पुनरावृत्ति प्रश्न समावेश गर्नुहोस्।
+
+भिडियो रूपरेखा:
+00:00 सुरुवात: हामीले ${safeTopic} बारे किन जान्नुपर्छ?
+01:00 मुख्य प्रश्न र आवश्यक सन्दर्भ
+03:00 विज्ञान, प्रमाण र NASA ले सिकेका कुरा
+06:00 पृथ्वी र भविष्यको अन्वेषणका लागि यसको अर्थ
+08:00 मुख्य कुरा र निरन्तर सिकाइको निमन्त्रणा
+
+आह्वान: सही र प्रेरणादायी NASA अन्तरिक्ष शिक्षाका लागि सदस्यता लिनुहोस् र विद्यार्थीहरूसँग साझा गर्नुहोस्।
+मास्टर प्रॉम्प्ट शैली: ${sectionNote}`
+  }
   return `TITLE: ${safeTopic} | The NASA Story You Need to Know
 
-DESCRIPTION: Discover ${safeTopic} through clear, accurate space education. This episode explains the science, evidence, mission context, and why this topic matters for our shared future. Created for curious learners by Cosmos, an independent educational channel. This video is not affiliated with or endorsed by NASA.
+DESCRIPTION: Discover ${safeTopic} through clear, accurate space education. This episode explains the science, evidence, mission context, and why this topic matters for our shared future. This independent educational video is not affiliated with or endorsed by NASA.
 
-TAGS: NASA, ${safeTopic}, space exploration, astronomy, cosmos, science education, universe, STEM, space explained
+TAGS: NASA, ${safeTopic}, space exploration, astronomy, cosmos, science education, universe, STEM
 
 SEO KEYWORDS: ${safeTopic}, NASA education, space science, astronomy explained, universe facts, STEM learning
 
-VIDEO LENGTH: ${length} minutes${studentNote}
+VIDEO LENGTH: ${length} minutes
+STUDENT LEVEL: ${gradeLevel}. Define difficult words, use familiar examples, and include 3 short review questions.
 
 VIDEO OUTLINE:
 00:00 Hook: Why should we care about ${safeTopic}?
@@ -91,7 +128,8 @@ VIDEO OUTLINE:
 06:00 What this means for Earth and future exploration
 08:00 Key takeaways and invitation to keep learning
 
-CALL TO ACTION: Subscribe for accurate, inspiring NASA and space education in English, Hindi, and Nepali. Share this episode with a curious learner.${languageNote}${sectionNote}`
+CALL TO ACTION: Subscribe for accurate, inspiring NASA space education and share this episode with a curious learner.
+MASTER PROMPT STYLE: ${sectionNote}`
 }
 
 export async function POST(request: Request) {
