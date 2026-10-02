@@ -69,7 +69,7 @@ export default function CosmosStudio() {
   }
 
   function getStorytellingScript(packageText: string) {
-    const lines = packageText.split(/\\r?\\n/)
+    const lines = packageText.split(/\r?\n/)
     const labels = ["पूर्ण शब्द-प्रति-शब्द कथा वाचन लिपि", "पूर्ण शब्द-दर-शब्द स्क्रिप्ट", "FULL WORD-FOR-WORD SCRIPT", "STORYTELLING SCRIPT", "STORY SCRIPT", "कहानी की स्क्रिप्ट", "कथात्मक स्क्रिप्ट", "कथा स्क्रिप्ट", "कथन स्क्रिप्ट"]
     const start = lines.findIndex((line) => labels.some((label) => line.toUpperCase().includes(label.toUpperCase())))
     if (start >= 0) {
