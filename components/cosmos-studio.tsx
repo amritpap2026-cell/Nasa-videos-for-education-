@@ -75,16 +75,19 @@ export default function CosmosStudio() {
 
   function getStorytellingScript(packageText: string) {
     const lines = packageText.replace(/\r/g, "").split("\n")
-    const part11Pattern = /(?:PART|SECTION|भाग|खंड)\s*11\b|^\s*11\s*[.)·—:-]/i
-    const start = lines.findIndex((line) => part11Pattern.test(line))
+    // Supported exact headings: 11. नेपाली/हिन्दी/English storytelling script.
+    const part11Heading = /^\s*11\s*[.)·—:-]\s*(?:पूर्ण\s+शब्द-प्रति-शब्द\s+कथा\s+वाचन\s+लिपि|पूर्ण\s+शब्द-दर-शब्द\s+स्क्रिप्ट|FULL\s+WORD-FOR-WORD\s+SCRIPT)(?:\s*\(STORYTELLING\s+SCRIPT\))?/i
+    const genericPart11 = /^\s*(?:PART|SECTION|भाग|खंड)\s*11\b/i
+    const start = lines.findIndex((line) => part11Heading.test(line) || genericPart11.test(line))
     if (start < 0) return ""
     const content: string[] = []
     for (const line of lines.slice(start + 1)) {
+      // Stop before 12. (or any later numbered heading), never include it.
       if (/^\s*(?:(?:PART|SECTION|भाग|खंड)\s*\d+\b|\d+\s*[.)·—:-])\s*/i.test(line)) break
       if (/^\s*(?:QUESTIONS|प्रश्न|CALL TO ACTION|आह्वान|TITLE|शीर्षक|DESCRIPTION|विवरण|TAGS|टैग|SEO|VIDEO OUTLINE|वीडियो रूपरेखा|MASTER PROMPT)\b/i.test(line)) break
       content.push(line)
     }
-    return cleanVoiceText(content.join("\n").replace(/^(?:पूर्ण शब्द-प्रति-शब्द कथा वाचन लिपि|पूर्ण शब्द-दर-शब्द स्क्रिप्ट|FULL WORD-FOR-WORD SCRIPT|STORYTELLING SCRIPT)\s*[:：]?\s*/i, ""))
+    return cleanVoiceText(content.join("\n"))
   }
 
   async function generateVoiceover() {
