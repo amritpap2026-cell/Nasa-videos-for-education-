@@ -63,7 +63,7 @@ export default function CosmosStudio() {
   function stopSpeaking() { window.speechSynthesis?.cancel(); setSpeaking(false) }
 
   function getStorytellingScript(packageText: string) {
-    const match = packageText.match(/(?:STORYTELLING SCRIPT|STORY SCRIPT|कथात्मक स्क्रिप्ट|कथा स्क्रिप्ट|कथन स्क्रिप्ट)\s*:\s*([\s\S]*?)(?=\n\s*(?:TITLE|शीर्षक|DESCRIPTION|विवरण|TAGS|टैग|SEO|VIDEO OUTLINE|वीडियो रूपरेखा|CALL TO ACTION|आह्वान|$))/i)
+    const match = packageText.match(/(?:STORYTELLING SCRIPT|STORY SCRIPT|कहानी की स्क्रिप्ट|कथात्मक स्क्रिप्ट|कथा स्क्रिप्ट|कथन स्क्रिप्ट)\s*:\s*([\s\S]*?)(?=\n\s*(?:TITLE|शीर्षक|DESCRIPTION|विवरण|TAGS|टैग|SEO|VIDEO OUTLINE|वीडियो रूपरेखा|CALL TO ACTION|आह्वान|$))/i)
     return (match?.[1] || packageText).trim()
   }
 
@@ -73,7 +73,7 @@ export default function CosmosStudio() {
     if (!storytellingScript) { setStatus("Add a storytelling script before generating voiceover."); return }
     setVoiceLoading(true); setStatus("")
     try {
-      const response = await fetch("/api/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mode: "voiceover", script: storytellingScript, voice: voiceLanguage === "hi-IN" ? "Kore" : voiceLanguage === "ne-NP" ? "Puck" : "Kore" }) })
+      const response = await fetch("/api/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mode: "voiceover", language: voiceLanguage === "hi-IN" ? "Hindi" : voiceLanguage === "ne-NP" ? "Nepali" : "English", script: storytellingScript, voice: voiceLanguage === "hi-IN" ? "Kore" : voiceLanguage === "ne-NP" ? "Puck" : "Kore" }) })
       const data = await response.json()
       if (!response.ok || !data.audio) throw new Error(data.error || "Voiceover generation failed")
       const bytes = Uint8Array.from(atob(data.audio), (character) => character.charCodeAt(0))
