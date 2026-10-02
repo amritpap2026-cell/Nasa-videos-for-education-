@@ -1,6 +1,9 @@
 name: Test NASA Caption Matcher
 
 on:
+  push:
+    branches:
+      - nasa-asset-engine
   workflow_dispatch:
 
 jobs:
