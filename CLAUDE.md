@@ -48,3 +48,10 @@ over the same visuals to save editing time.
   Visualization Studio"
 - Add narration and original commentary so videos qualify as original,
   educational content on YouTube
+
+I have an existing CLAUDE.md and a new file called CLAUDE-new.md.
+Merge the useful parts of CLAUDE-new.md into CLAUDE.md without deleting
+anything that's already in CLAUDE.md. Avoid duplicates, keep the existing
+structure, and show me what you changed. Then delete CLAUDE-new.md.
+Also place nasa-footage-api.js in src/services (create the folder if
+needed) and change its module.exports to an ES export.
