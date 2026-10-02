@@ -75,13 +75,13 @@ export default function CosmosStudio() {
   }
 
   function getStorytellingScript(packageText: string) {
-    // Only this explicit Part 11 block can enter the second window.
+    // Deliberately copy one block only: Part 11 / section 11 through the next numbered section.
     const lines = packageText.replace(/\r/g, "").split("\n")
-    const start = lines.findIndex((line) => /PART\s*11|भाग\s*11/i.test(line))
-    if (start === -1) return ""
+    const start = lines.findIndex((line) => /(?:^|\s)(?:PART\s*11|भाग\s*11|SECTION\s*11|खंड\s*11|11\s*[.)·—:-])/i.test(line))
+    if (start < 0) return ""
     const content: string[] = []
     for (const line of lines.slice(start + 1)) {
-      if (/^\s*(?:PART|भाग)\s*\d+(?:\s|[-—:：.)]|$)/i.test(line)) break
+      if (/^\s*(?:PART|भाग|SECTION|खंड)\s*\d+\b/i.test(line) || /^\s*\d+\s*[.)·—:-]\s*/.test(line)) break
       if (/^\s*(?:QUESTIONS|प्रश्न|CALL TO ACTION|आह्वान|TITLE|शीर्षक|DESCRIPTION|विवरण|TAGS|टैग|SEO|VIDEO OUTLINE|वीडियो रूपरेखा|MASTER PROMPT)\b/i.test(line)) break
       content.push(line)
     }
@@ -119,9 +119,15 @@ export default function CosmosStudio() {
   function openVoiceover() { setOpen(true); setVisualsOpen(false) }
   function openVisuals() { setOpen(false); setVisualsOpen(true); searchVisuals() }
   function extractStorytellingScript() {
-    const extracted = getStorytellingScript(result?.text || "")
+    setStoryText("")
+    const source = result?.text || ""
+    const extracted = getStorytellingScript(source)
+    if (!extracted) {
+      setStatus("No Part 11 block found. Add a line beginning with PART 11, then click Extract again.")
+      return
+    }
     setStoryText(extracted)
-    setStatus(extracted ? "Part 11 storytelling script pasted into the second window." : "Part 11 storytelling script was not found in the first window.")
+    setStatus("Only Part 11 was copied into the second window.")
   }
 
   return <main className="shell">
