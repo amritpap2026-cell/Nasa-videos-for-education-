@@ -151,7 +151,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       source: "NASA",
       items: dedupedNasaItems.slice(0, 36),
-      notice: `NASA · ${dedupedNasaItems.length} result${dedupedNasaItems.length === 1 ? "" : "s"} for “${topic}”`
+      notice: `NASA · ${dedupedNasaItems.length} result${dedupedNasaItems.length === 1 ? "" : "s"} for “${topic}”`,
       sceneMatching: Boolean(script),
       extraction: "timestamped NASA clips are prepared by the separate FFmpeg worker",
     })
