@@ -21,21 +21,21 @@ jobs:
           mkdir -p tmp
           cat > tmp/diversity-candidates.json <<'EOF'
           [
-  {
-    "nasaId": "NASA_BLACK_HOLE_A",
-    "title": "Black Hole Visualization A",
-    "score": 0.7
-  },
-  {
-    "nasaId": "NASA_BLACK_HOLE_B",
-    "title": "Black Hole Visualization B",
-    "score": 0.7
-  },
-  {
-    "nasaId": "NASA_BLACK_HOLE_C",
-    "title": "Black Hole Visualization C",
-    "score": 0.6
-  }
+          {
+          "nasaId": "NASA_BLACK_HOLE_A",
+          "title": "Black Hole Visualization A",
+          "score": 0.7
+          },
+          {
+          "nasaId": "NASA_BLACK_HOLE_B",
+          "title": "Black Hole Visualization B",
+          "score": 0.7
+          },
+          {
+          "nasaId": "NASA_BLACK_HOLE_C",
+          "title": "Black Hole Visualization C",
+          "score": 0.6
+          }
 ]
 
           EOF
@@ -66,22 +66,22 @@ jobs:
           ], "test-episode-001")
 
           const ranked = rankDiverseCandidates(
-            [
-  {
-    "nasaId": "NASA_BLACK_HOLE_A",
-    "title": "Black Hole Visualization A",
-    "score": 0.7
-  },
-  {
-    "nasaId": "NASA_BLACK_HOLE_B",
-    "title": "Black Hole Visualization B",
-    "score": 0.7
-  },
-  {
-    "nasaId": "NASA_BLACK_HOLE_C",
-    "title": "Black Hole Visualization C",
-    "score": 0.6
-  }
+          [
+          {
+          "nasaId": "NASA_BLACK_HOLE_A",
+          "title": "Black Hole Visualization A",
+          "score": 0.7
+          },
+          {
+          "nasaId": "NASA_BLACK_HOLE_B",
+          "title": "Black Hole Visualization B",
+          "score": 0.7
+          },
+          {
+          "nasaId": "NASA_BLACK_HOLE_C",
+          "title": "Black Hole Visualization C",
+          "score": 0.6
+          }
 ]
 ,
             history
