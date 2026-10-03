@@ -25,7 +25,6 @@ export default function CosmosStudio() {
   const [topic, setTopic] = useState("")
   const [language, setLanguage] = useState("English")
   const [gradeLevel, setGradeLevel] = useState("Class 8–10")
-  const [length, setLength] = useState("0-10")
   const [lengthValue, setLengthValue] = useState("10")
   const [packageType, setPackageType] = useState("youtube")
   const [loading, setLoading] = useState(false)
