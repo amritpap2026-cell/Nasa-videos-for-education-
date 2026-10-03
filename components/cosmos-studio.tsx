@@ -26,6 +26,7 @@ export default function CosmosStudio() {
   const [language, setLanguage] = useState("English")
   const [gradeLevel, setGradeLevel] = useState("Class 8–10")
   const [length, setLength] = useState("0-10")
+  const [lengthValue, setLengthValue] = useState("10")
   const [packageType, setPackageType] = useState("youtube")
   const [loading, setLoading] = useState(false)
   const [status, setStatus] = useState("")
@@ -62,7 +63,7 @@ export default function CosmosStudio() {
       const response = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ topic, language, gradeLevel, length, packageType, mode: "brainstorm" }),
+        body: JSON.stringify({ topic, language, gradeLevel, length: `0-${lengthValue}`, packageType, mode: "brainstorm" }),
       })
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || "Topic search failed")
@@ -82,7 +83,7 @@ export default function CosmosStudio() {
       const response = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ topic, language, gradeLevel, length, packageType }),
+        body: JSON.stringify({ topic, language, gradeLevel, length: `0-${lengthValue}`, packageType }),
       })
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || "Generation failed")
@@ -512,14 +513,27 @@ export default function CosmosStudio() {
             </div>
 
             <div className="field">
-              <label htmlFor="length">Video length (minutes)</label>
-              <select id="length" value={length} onChange={(e) => setLength(e.target.value)}>
-                <option value="0-5">0–5</option>
-                <option value="0-10">0–10</option>
-                <option value="0-15">0–15</option>
-                <option value="0-30">0–30</option>
-                <option value="0-60">0–60</option>
-              </select>
+              <label htmlFor="length">
+                {packageType === "shorts" ? "Short length (seconds)" : packageType === "lesson" ? "Lesson length (minutes)" : "Video length (minutes)"}
+              </label>
+              <input
+                id="length"
+                type="number"
+                min={packageType === "shorts" ? 10 : 1}
+                max={packageType === "shorts" ? 180 : 180}
+                step="1"
+                value={lengthValue}
+                onChange={(e) => {
+                  const value = e.target.value
+                  setLengthValue(value)
+                  setLength(`0-${value}`)
+                }}
+              />
+              <p className="field-hint">
+                {packageType === "shorts"
+                  ? "Use any short-form duration from 10–180 seconds."
+                  : "Use any duration from 1–180 minutes. The protocol expands or compresses the production plan to match it."}
+              </p>
             </div>
 
             {ideas.length > 0 && (
@@ -589,7 +603,7 @@ export default function CosmosStudio() {
             </div>
 
             <button className="generate" onClick={generate} disabled={loading || topic.trim().length < 3}>
-              {loading ? "Generating your package..." : "Generate YouTube package"}
+              {loading ? "Generating your package..." : packageType === "lesson" ? "Generate classroom lesson" : packageType === "shorts" ? "Generate Short" : "Generate YouTube package"}
             </button>
 
             {status && (
