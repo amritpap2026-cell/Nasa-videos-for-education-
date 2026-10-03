@@ -10,7 +10,7 @@ LANGUAGE: [English / Hindi / Nepali]
 AUDIENCE: [optional]
 
 HARD COMPLETION RULE
-Return every section 1 through 15 in order. Every heading MUST begin with SECTION N. Match the script tightly to the requested seconds. Never pad with filler.
+Return SECTION 1 through SECTION 15 in order, then SECTION 25 as the shared final production/QC section. Every heading MUST begin with SECTION N. Match the script tightly to the requested seconds. Never pad with filler.
 
 1. SHORT CONCEPT — one clear idea.
 2. HOOK — first 1–2 seconds.
@@ -26,7 +26,9 @@ Return every section 1 through 15 in order. Every heading MUST begin with SECTIO
 12. EDITING PLAN — cuts, transitions, pattern interrupts, and pacing.
 13. SHORT TITLE + DESCRIPTION + HASHTAGS — platform-ready metadata.
 14. THUMBNAIL / COVER CONCEPT — subject, composition, text, AI prompt.
-15. QC — duration, factual accuracy, hook, caption readability, visual changes, and completion audit.
+15. QC — duration, factual accuracy, hook, caption readability, visual changes, and Short-specific completion checks.
+
+25. FINAL PRODUCTION / QC + THUMBNAIL — final export/readiness checklist, factual/timing verification, mobile presentation, publishing checks, and one thumbnail/cover concept for this Short. This is the only Section 25. Do not add Sections 16–24.
 
 DURATION ENGINE
 Write to the exact requested duration using roughly 140–170 spoken words per minute, adjusted for pauses. All timestamps must fit inside the requested duration. Do not turn a short into a mini documentary. One Short = one strong idea.
@@ -38,4 +40,4 @@ ACCURACY
 Use authoritative sources. Never invent facts. Do not imply NASA endorsement.
 
 FINAL RULE
-Return all 15 sections completely.
+Return SECTION 1 through SECTION 15 completely, followed by SECTION 25 completely. Do not generate Sections 16–24.
