@@ -498,8 +498,12 @@ ${prompt}`,
       "STUDENT LEVEL: " + gradeLevel,
       "REQUESTED LENGTH: " + selectedLength + " minutes",
       "TARGET SCRIPT LENGTH: at least " + scriptTargetWords + " words.",
-      "AUTHORITATIVE PROTOCOL:",
-      masterPrompt || protocolLabel,
+      "SCRIPT FORMAT:",
+      normalizedPackageType === "youtube"
+        ? "This is the YouTube PART 11 storytelling narration."
+        : normalizedPackageType === "lesson"
+          ? "This is the Classroom SECTION 11 complete teacher script."
+          : "This is the Shorts SECTION 5 complete word-for-word script.",
       "",
       languageInstruction,
       "",
@@ -536,7 +540,8 @@ ${prompt}`,
         const candidate = data?.candidates?.[0]
         const text = candidate?.content?.parts?.map((part: { text?: string }) => part?.text || "").join("")?.trim()
         if (!text) continue
-        if (getWordCount(text) < scriptMinimumWords) continue
+        const wordCount = getWordCount(text)
+        if (wordCount < Math.round(scriptTargetWords * 0.95)) continue
         authoritativeScript = text
         scriptModel = model
         break
