@@ -3,7 +3,21 @@
 import { useState } from "react"
 import { ArrowRight, Check, Film, Globe2, Lightbulb, Search, Sparkles, Volume2, X } from "lucide-react"
 
-type Result = { text: string; model: string; notice?: string }
+type PackageAudit = {
+  passed: boolean
+  missing: number[]
+  duplicates: number[]
+  emptySections: number[]
+  wrongOrder: boolean
+  scriptWords: number
+  minimumScriptWords: number
+  timelineEndSeconds: number
+  targetSeconds: number
+  scriptPass: boolean
+  timelinePass: boolean
+  wrapperPass: boolean
+}
+type Result = { text: string; model: string; notice?: string; audit?: PackageAudit }
 
 type VisualItem = {
   source: string
@@ -87,10 +101,13 @@ export default function CosmosStudio() {
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || "Generation failed")
       setResult(data)
+      if (!data.audit?.passed) {
+        throw new Error("The server returned a package that did not pass the completion audit. No incomplete package was accepted.")
+      }
       const generatedStory = extractPackageScript(data.text || "", packageType)
       setStoryText(generatedStory)
       if (generatedStory) {
-        setStatus("Story package generated. Part 11 storytelling script is ready for voiceover.")
+        setStatus(`Complete ${packageType === "lesson" ? "classroom" : packageType === "shorts" ? "Shorts" : "YouTube"} package generated and audited. Script: ${data.audit.scriptWords} words; required minimum: ${data.audit.minimumScriptWords}.`)
       }
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Generation failed. Please try again.")
