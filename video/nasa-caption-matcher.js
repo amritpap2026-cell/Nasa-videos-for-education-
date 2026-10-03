@@ -53,10 +53,11 @@ async function getSvsCaptionFallback(nasaId) {
 
   const html = await pageRes.text()
   const links = []
-  const linkPattern = /(?:href|src)=["']([^"']+\\.(?:srt|vtt)(?:\\?[^"']*)?)["']/gi
+  const attributePattern = /(?:href|src|data-url|data-href)=["']([^"']+)["']/gi
 
-  for (const match of html.matchAll(linkPattern)) {
-    links.push(match[1].replace(/&amp;/g, "&"))
+  for (const match of html.matchAll(attributePattern)) {
+    const link = match[1].replace(/&amp;/g, "&")
+    if (/\.(?:srt|vtt)(?:[?#]|$)/i.test(link)) links.push(link)
   }
 
   const captionUrls = [...new Set(
@@ -83,6 +84,44 @@ async function getSvsCaptionFallback(nasaId) {
         svsId,
         pageUrl,
       }
+    }
+  }
+
+  return null
+}
+
+
+async function getImageLibraryDetailCaptionFallback(nasaId) {
+  const pageUrl = \`https://images.nasa.gov/details-\${encodeURIComponent(nasaId)}\`
+  const pageRes = await fetch(pageUrl)
+  if (!pageRes.ok) return null
+
+  const html = await pageRes.text()
+  const links = []
+  const attributePattern = /(?:href|src|data-url|data-href)=["']([^"']+)["']/gi
+
+  for (const match of html.matchAll(attributePattern)) {
+    const link = match[1].replace(/&amp;/g, "&")
+    if (/\.(?:srt|vtt)(?:[?#]|$)/i.test(link)) links.push(link)
+  }
+
+  const captionUrls = [...new Set(
+    links.map((link) => {
+      try {
+        return new URL(link, pageUrl).href
+      } catch {
+        return null
+      }
+    }).filter(Boolean)
+  )]
+
+  for (const captionUrl of captionUrls) {
+    const captionRes = await fetch(captionUrl)
+    if (!captionRes.ok) continue
+
+    const text = await captionRes.text()
+    if (/-->/.test(text)) {
+      return { nasaId, captionUrl, text, source: "images.nasa.gov detail page", pageUrl }
     }
   }
 
@@ -132,10 +171,13 @@ async function getNasaCaptions(nasaId) {
     }
   } catch {}
 
+  const detailFallback = await getImageLibraryDetailCaptionFallback(nasaId)
+  if (detailFallback) return detailFallback
+
   const svsFallback = await getSvsCaptionFallback(nasaId)
   if (svsFallback) return svsFallback
 
-  throw new Error(`NASA caption lookup failed for ${nasaId}: no readable SRT/VTT found in Image Library or NASA SVS`)
+  throw new Error(\`NASA caption lookup failed for \${nasaId}: no readable SRT/VTT found in captions API, asset manifest, detail page, or NASA SVS\`)
 }
 
 function timestampToSeconds(value) {
