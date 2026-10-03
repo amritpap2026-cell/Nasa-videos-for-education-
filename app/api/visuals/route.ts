@@ -12,48 +12,89 @@ export async function POST(request: Request) {
   const visualRequirement =
     typeof body.visualRequirement === "string" ? body.visualRequirement.trim() : topic
 
-  const query = encodeURIComponent(topic)
-
-  // Search NASA Image & Video Library for both images and videos
-  const nasaResponses = await Promise.all(
-    ["image", "video"].map((mediaType) =>
-      fetch(`https://images-api.nasa.gov/search?q=${query}&media_type=${mediaType}&page_size=20`, {
-        next: { revalidate: 3600 },
-      })
+  // NASA search works best with short space terms. A full question such as
+  // "Why do black holes have such strong gravity?" can return zero results even
+  // though "black hole" has many NASA assets. Search the original phrase first,
+  // then progressively shorter subject queries and merge/dedupe the results.
+  const stopWords = new Set([
+    "why", "how", "what", "when", "where", "which", "who", "does", "do", "did",
+    "is", "are", "was", "were", "can", "could", "would", "should", "have", "has",
+    "had", "the", "a", "an", "such", "very", "really", "about", "explain", "explained",
+    "explanation", "strong", "strongest", "for", "to", "of", "in", "on", "and", "or",
+  ])
+  const cleanedTopic = topic
+    .replace(/[?!.,:;()\[\]{}"'’]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+  const subjectWords = cleanedTopic
+    .split(" ")
+    .map((word) => word.trim())
+    .filter(Boolean)
+    .filter((word) => !stopWords.has(word.toLowerCase()))
+  const subjectQuery = subjectWords.slice(0, 5).join(" ")
+  const queries = Array.from(
+    new Set(
+      [topic, subjectQuery, subjectWords.slice(0, 3).join(" "), subjectWords.slice(0, 2).join(" ")]
+        .map((value) => value.trim())
+        .filter((value) => value.length >= 2)
     )
   )
 
-  const nasaData = await Promise.all(
-    nasaResponses.map((response) => (response.ok ? response.json() : { collection: { items: [] } }))
+  const nasaResults = await Promise.all(
+    queries.map(async (searchTerm) => {
+      const encoded = encodeURIComponent(searchTerm)
+      const responses = await Promise.all(
+        ["image", "video"].map((mediaType) =>
+          fetch(`https://images-api.nasa.gov/search?q=${encoded}&media_type=${mediaType}&page_size=20`, {
+            next: { revalidate: 3600 },
+          })
+        )
+      )
+      const data = await Promise.all(
+        responses.map((response) => (response.ok ? response.json() : { collection: { items: [] } }))
+      )
+      return { searchTerm, data }
+    })
   )
 
-  const nasaItems = nasaData.flatMap((data, index) => {
-    const mediaType = index === 0 ? "image" : "video"
-    return (data.collection?.items || [])
-      .map(
-        (item: {
-          data?: Array<{ title?: string; description?: string; nasa_id?: string; media_type?: string }>
-          links?: Array<{ href?: string; rel?: string }>
-          href?: string
-        }) => {
-          const meta = item.data?.[0] || {}
-          const preview =
-            item.links?.find((link) => link.rel === "preview")?.href ||
-            item.links?.[0]?.href ||
-            item.href
-          return {
-            source: "NASA",
-            title: meta.title || topic,
-            description: meta.description || "NASA media",
-            nasaId: meta.nasa_id,
-            mediaType: meta.media_type || mediaType,
-            url: preview,
-            pageUrl: meta.nasa_id ? `https://images.nasa.gov/details-${meta.nasa_id}` : undefined,
+  const nasaItems = nasaResults.flatMap(({ data }) =>
+    data.flatMap((data, index) => {
+      const mediaType = index === 0 ? "image" : "video"
+      return (data.collection?.items || [])
+        .map(
+          (item: {
+            data?: Array<{ title?: string; description?: string; nasa_id?: string; media_type?: string }>
+            links?: Array<{ href?: string; rel?: string }>
+            href?: string
+          }) => {
+            const meta = item.data?.[0] || {}
+            const preview =
+              item.links?.find((link) => link.rel === "preview")?.href ||
+              item.links?.[0]?.href ||
+              item.href
+            return {
+              source: "NASA",
+              title: meta.title || topic,
+              description: meta.description || "NASA media",
+              nasaId: meta.nasa_id,
+              mediaType: meta.media_type || mediaType,
+              url: preview,
+              pageUrl: meta.nasa_id ? `https://images.nasa.gov/details-${meta.nasa_id}` : undefined,
+            }
           }
-        }
-      )
-      .filter((item: { url?: string }) => Boolean(item.url))
-  })
+        )
+        .filter((item: { url?: string }) => Boolean(item.url))
+    })
+  )
+
+  const dedupedNasaItems = Array.from(
+    new Map(
+      nasaItems.map((item: { nasaId?: string; url?: string }, index: number) => [
+        item.nasaId || `${item.mediaType}-${item.url || index}`,
+        item,
+      ])
+    ).values()
+  )
 
   // Prefer videos a bit higher by putting them first, then images
   nasaItems.sort((a: { mediaType?: string }, b: { mediaType?: string }) => {
@@ -62,7 +103,7 @@ export async function POST(request: Request) {
     return 0
   })
 
-  if (nasaItems.length) {
+  if (dedupedNasaItems.length) {
     const videoItems = nasaItems
       .filter((item) => item.mediaType === "video" && item.nasaId)
       .slice(0, 6)
@@ -109,8 +150,8 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       source: "NASA",
-      items: nasaItems.slice(0, 36),
-      notice: `NASA · ${nasaItems.length} result${nasaItems.length === 1 ? "" : "s"} for “${topic}”`,
+      items: dedupedNasaItems.slice(0, 36),
+      notice: `NASA · ${dedupedNasaItems.length} result${dedupedNasaItems.length === 1 ? "" : "s"} for “${topic}”`
       sceneMatching: Boolean(script),
       extraction: "timestamped NASA clips are prepared by the separate FFmpeg worker",
     })
