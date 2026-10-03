@@ -292,19 +292,19 @@ export default function CosmosStudio() {
 
   function extractPart25(packageText: string) {
     const text = packageText.replace(/\r\n/g, "\n").replace(/\r/g, "\n")
-    const match = text.match(/(?:PART|STEP|भाग)\s*25[^\n]*\n([\s\S]*?)(?=\n(?:PART|STEP|भाग)\s*26\b|$)/i)
+    const match = text.match(/(?:PART|SECTION|STEP|भाग)\s*25[^\n]*\n([\s\S]*?)(?=\n(?:PART|SECTION|STEP|भाग)\s*26\b|$)/i)
     return match?.[1]?.trim() || ""
   }
 
   function generateThumbnail() {
     const concepts = extractPart25(result?.text || "")
     if (!concepts) {
-      setStatus("Could not find Part 25 (THUMBNAIL CONCEPTS). Regenerate the YouTube package first.")
+      setStatus("Could not find Section 25 (THUMBNAIL / FINAL PRODUCTION). Regenerate the package first.")
       return
     }
     setAiVisualType("image")
     setAiVisualPrompt(concepts)
-    setAiVisualScene("YouTube thumbnail")
+    setAiVisualScene("Thumbnail / cover")
     setAiVisualAsset(null)
     setAiVisualOpen(true)
   }
@@ -321,7 +321,7 @@ export default function CosmosStudio() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          mode: aiVisualScene.trim() === "YouTube thumbnail"
+          mode: aiVisualScene.trim() === "Thumbnail / cover"
             ? "thumbnail"
             : aiVisualType === "image"
               ? "ai-image"
@@ -711,7 +711,7 @@ export default function CosmosStudio() {
                     <Sparkles size={16} /> AI image / video
                   </button>
                   <button className="secondary voice-play" type="button" onClick={generateThumbnail}>
-                    <Sparkles size={16} /> Generate thumbnail
+                    <Sparkles size={16} /> Generate thumbnail / cover
                   </button>
                 </div>
 
@@ -827,7 +827,7 @@ export default function CosmosStudio() {
                 <div className="modal-kicker">AI Visual Studio</div>
                 <h2 id="ai-visual-title">Generate an image or video</h2>
                 <p className="muted">
-                  The default prompt comes from the same Gemini YouTube package/story used by this video.
+                  The default prompt comes from the same Gemini package/story used by this video.
                   Edit it for the selected scene before sending it to your generation provider.
                 </p>
               </div>
@@ -866,7 +866,7 @@ export default function CosmosStudio() {
                 onChange={(e) => setAiVisualPrompt(e.target.value)}
               />
               <p className="field-hint">
-                Script 13 is the default AI image prompt. Script 14 is the default AI video prompt. Both come from the same YouTube package.
+                The default AI visual prompt comes from the selected protocol: YouTube uses Parts 13/14, Classroom uses Sections 10, and Shorts use Sections 8/9.
               </p>
             </div>
 
