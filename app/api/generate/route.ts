@@ -773,7 +773,15 @@ ${prompt}`,
 
           completeText = injectAuthoritativeScript(completeText, normalizedPackageType, authoritativeScript)
           audit = auditPackage(completeText, normalizedPackageType, durationValue)
-          if (audit.passed) return NextResponse.json({ text: completeText, model, scriptModel, audit })
+          if (audit.passed) {
+            return NextResponse.json({
+              text: completeText,
+              script: authoritativeScript,
+              model,
+              scriptModel,
+              audit,
+            })
+          }
           continue
         }
       } catch {
