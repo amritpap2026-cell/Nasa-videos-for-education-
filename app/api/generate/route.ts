@@ -9,7 +9,31 @@ const preferredModels = [
 
 const requestTimeoutMs = 25_000
 const voiceoverTimeoutMs = 55_000
-const masterPromptUrl = "https://raw.githubusercontent.com/amritpap2026-cell/Nasa-videos-for-education-/main/universal_youtube_master_prompt.txt"
+const protocolPromptUrls: Record<string, string> = {
+  youtube: "https://raw.githubusercontent.com/amritpap2026-cell/Nasa-videos-for-education-/nasa-asset-engine/universal_youtube_master_prompt.txt",
+  lesson: "https://raw.githubusercontent.com/amritpap2026-cell/Nasa-videos-for-education-/nasa-asset-engine/universal_classroom_lesson_master_prompt.txt",
+  shorts: "https://raw.githubusercontent.com/amritpap2026-cell/Nasa-videos-for-education-/nasa-asset-engine/universal_shorts_master_prompt.txt",
+}
+
+function expectedPackageSections(packageType: string) {
+  if (packageType === "lesson") return 18
+  if (packageType === "shorts") return 15
+  return 25
+}
+
+function getGeneratedSectionNumbers(text: string) {
+  const numbers = new Set<number>()
+  const regex = /(?:^|\n)\s*(?:PART|SECTION|STEP|भाग)\s*(\d+)\b/gi
+  let match: RegExpExecArray | null
+  while ((match = regex.exec(text)) !== null) numbers.add(Number(match[1]))
+  return numbers
+}
+
+function getMissingSections(text: string, packageType: string) {
+  const max = expectedPackageSections(packageType)
+  const found = getGeneratedSectionNumbers(text)
+  return Array.from({ length: max }, (_, index) => index + 1).filter((n) => !found.has(n))
+}
 
 function pcmBase64ToWavBase64(base64: string, sampleRate = 24000, channels = 1, bitsPerSample = 16) {
   const pcm = Buffer.from(base64, "base64")
@@ -76,11 +100,11 @@ function createFallbackTopics(topic: string, language: string) {
   ]
 }
 
-async function createFallbackPackage(topic: string, language: string, gradeLevel: string, length: string) {
+async function createFallbackPackage(topic: string, language: string, gradeLevel: string, length: string, packageType = "youtube") {
   const safeTopic = topic.trim() || "NASA and space exploration"
   let styleGuide = ""
   try {
-    const response = await fetch(masterPromptUrl, { signal: AbortSignal.timeout(8_000), cache: "no-store" })
+    const response = await fetch(protocolPromptUrls[packageType] || protocolPromptUrls.youtube, { signal: AbortSignal.timeout(8_000), cache: "no-store" })
     if (response.ok) styleGuide = await response.text()
   } catch {
     // Keep the local package available when GitHub is unreachable.
@@ -175,7 +199,7 @@ MASTER PROMPT STYLE: ${sectionNote}`
 export async function POST(request: Request) {
   try {
     const requestBody = await request.json()
-    const { topic, language = "English", gradeLevel = "Class 8–12", length = "0-10", mode = "package" } = requestBody
+    const { topic, language = "English", gradeLevel = "Class 8–12", length = "0-10", mode = "package", packageType = "youtube" } = requestBody
     if (mode !== "voiceover" && (typeof topic !== "string" || topic.length > 300)) return NextResponse.json({ error: "Please enter a topic no longer than 300 characters." }, { status: 400 })
     const normalizedLanguage = ["English", "Hindi", "Nepali"].includes(language) ? language : "English"
     const key = (process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY || "").trim()
@@ -335,31 +359,52 @@ ${prompt}`,
 
     if (topic.trim().length < 3) return NextResponse.json({ error: "Please enter a topic with at least 3 characters." }, { status: 400 })
     const selectedLength = ["0-5", "0-10", "0-15", "0-30", "0-60"].includes(length) ? length : "0-10"
-    if (!key) return NextResponse.json({ text: await createFallbackPackage(topic, normalizedLanguage, gradeLevel, selectedLength), model: "local master-prompt fallback" })
+    if (!key) return NextResponse.json({ text: await createFallbackPackage(topic, normalizedLanguage, gradeLevel, selectedLength, normalizedPackageType), model: "local master-prompt fallback" })
     let masterPrompt = ""
+    const normalizedPackageType = ["youtube", "lesson", "shorts"].includes(packageType) ? packageType : "youtube"
     try {
-      const promptResponse = await fetch(masterPromptUrl, { signal: AbortSignal.timeout(8_000), next: { revalidate: 3600 } })
+      const promptResponse = await fetch(protocolPromptUrls[normalizedPackageType], { signal: AbortSignal.timeout(8_000), next: { revalidate: 3600 } })
       if (promptResponse.ok) masterPrompt = await promptResponse.text()
-    } catch {
-      // The concise prompt below remains available when GitHub is unreachable.
-    }
+    } catch {}
+
     const languageInstruction = normalizedLanguage === "Hindi"
-      ? "Write every user-facing field entirely in Hindi using Devanagari script, including the title, description, tags, SEO keywords, outline, narration, captions, calls to action, and any extra sections. Keep proper nouns such as NASA, spacecraft, and mission names in their recognized form when appropriate, but do not switch the surrounding text to English."
+      ? "Write every user-facing field entirely in Hindi using Devanagari script. Keep recognized scientific proper nouns such as NASA and mission names where appropriate."
       : normalizedLanguage === "Nepali"
-        ? "Write every user-facing field entirely in Nepali using Devanagari script, including the title, description, tags, SEO keywords, outline, narration, captions, calls to action, and any extra sections. Keep proper nouns such as NASA, spacecraft, and mission names in their recognized form when appropriate, but do not switch the surrounding text to English."
-        : "Write every user-facing field entirely in English, including the title, description, tags, SEO keywords, outline, narration, captions, calls to action, and any extra sections."
+        ? "Write every user-facing field entirely in Nepali using Devanagari script. Keep recognized scientific proper nouns such as NASA and mission names where appropriate."
+        : "Write every user-facing field entirely in English."
+
     const maxMinutes = Number(selectedLength.split("-")[1]) || 10
     const targetWords = Math.max(450, Math.round(maxMinutes * 125))
-    const maxOutputTokens = Math.min(14000, Math.max(2200, Math.round(targetWords * 1.65) + 1400))
-    const prompt = `You are generating a complete YouTube production package.\n\nAUTHORITATIVE STYLE GUIDE (style and required sections only):\n${masterPrompt || "Use a clear, accurate, curiosity-driven NASA space education style with a strong hook, student-friendly explanations, search-friendly metadata, and a practical timestamped structure."}\n\nFollow the style guide for structure, quality, tone, and metadata strategy. However, the selected language below is a hard requirement and overrides any language instruction or English-only example inside the style guide. Never translate only the description: translate every generated field.\n\nTOPIC: ${topic.trim()}\nSELECTED OUTPUT LANGUAGE: ${normalizedLanguage}\nDESIRED VIDEO LENGTH: ${selectedLength} minutes\nSTUDENT LEVEL: ${gradeLevel}\n\nMake this appropriate for the selected school level: define difficult words, use age-appropriate examples, explain one idea at a time, and finish with 3 short review questions.\n\nHARD LANGUAGE REQUIREMENT: ${languageInstruction}\n\nDURATION REQUIREMENT: The STORYTELLING SCRIPT is a complete narration for the full requested video length, not a short summary. Write approximately ${targetWords} words (about 125 spoken words per minute) and organize it as a flowing cinematic educational story. For a range such as 0-10, write for up to 10 minutes. Cover the opening mystery, why the topic matters, the historical or scientific context, how it works or happened step by step, the evidence and NASA missions or observations, common misconceptions, its connection to Earth and student curriculum, and a memorable conclusion. Use transitions and vivid but scientifically accurate imagery. Do not stop after the hook or outline.\n\nBefore finishing, check every section and remove English sentences, labels, headings, and explanatory notes when Hindi or Nepali is selected. Return a production-ready package containing every section required by the style guide, including title, description, tags, SEO keywords, a standalone Part 11 (STORYTELLING SCRIPT) using this exact wrapper so it can be extracted later:
+    const protocolLabel = normalizedPackageType === "youtube" ? "YouTube 25-part production package" : normalizedPackageType === "lesson" ? "Classroom lesson protocol" : "YouTube Shorts protocol"
+    const prompt = [
+      "You are generating a " + protocolLabel + ".",
+      "",
+      "AUTHORITATIVE PROTOCOL:",
+      masterPrompt || "Use the dedicated protocol structure and complete every numbered section.",
+      "",
+      "TOPIC: " + topic.trim(),
+      "OUTPUT LANGUAGE: " + normalizedLanguage,
+      "STUDENT LEVEL: " + gradeLevel,
+      "REQUESTED LENGTH: " + selectedLength + " minutes",
+      "TARGET NARRATION WORDS FOR LONG-FORM YOUTUBE: approximately " + targetWords,
+      "",
+      "LANGUAGE REQUIREMENT:", languageInstruction,
+      "",
+      "EXECUTION RULES:",
+      "- Follow the selected protocol exactly.",
+      "- Do not mix YouTube, classroom, and Shorts protocols.",
+      "- For YouTube, output PART 1 through PART 25 exactly once, in numerical order.",
+      "- For Classroom Lesson, output SECTION 1 through SECTION 18 exactly once.",
+      "- For Shorts, output SECTION 1 through SECTION 15 exactly once.",
+      "- Never stop early because the response is long.",
+      "- Match all timestamps and narration to the requested duration.",
+      "- If a long package cannot fit in one response, the system will request continuation; then output only the missing sections requested.",
+      "- Do not replace missing sections with a summary or duplicate an existing section.",
+      "",
+      "Return only the completed protocol output.",
+    ].join("\n")
 
-PART 11 (STORYTELLING SCRIPT)
-<<<STORYTELLING_SCRIPT_START>>>
-[the complete word-for-word narration only]
-<<<STORYTELLING_SCRIPT_END>>>
-PART 12
-
-The heading line MUST contain the exact text (STORYTELLING SCRIPT). Use this language-appropriate heading on the PART 11 line: "FULL WORD-FOR-WORD SCRIPT (STORYTELLING SCRIPT)" for English, "पूर्ण शब्द-दर-शब्द स्क्रिप्ट (STORYTELLING SCRIPT)" for Hindi, or "पूर्ण शब्द-प्रति-शब्द कथा वाचन लिपि (STORYTELLING SCRIPT)" for Nepali. Put only the spoken story between the START and END markers. Then continue with PART 12 (storyboard / video outline) and remaining sections. The STORYTELLING SCRIPT must be the only narration source: do not put titles, tags, SEO labels, timestamps, calls to action, chapter headings, sound effects, stage directions, or production notes inside it. The client will send only the text between the START and END markers to voiceover. Keep facts scientifically responsible, accessible to learners, inspiring, and do not claim NASA endorsement.\n\nPART 13\nIMAGE GENERATION PROMPT\nWrite one production-ready image-generation prompt for the most visually important scenes in this video. Specify subject, composition, camera/framing, lighting, scientifically accurate space context, 16:9 educational-video suitability, and negative constraints. This text will be copied verbatim into the AI Image generator.\n\nPART 14\nVIDEO GENERATION PROMPT\nWrite one production-ready text-to-video prompt for the most visually important scenes in this video. Specify subject action, camera movement, environment, lighting, scientifically accurate space context, 16:9 educational-video suitability, natural motion, and negative constraints. This text will be copied verbatim into the AI Video generator.\n\nReturn only the finished package.`
+    const maxOutputTokens = Math.min(60000, Math.max(12000, Math.round(targetWords * 2.2) + 8000))
     const models = await getAvailableModels(key)
 
     for (const model of models) {
@@ -380,8 +425,56 @@ The heading line MUST contain the exact text (STORYTELLING SCRIPT). Use this lan
         )
         if (!response.ok) continue
         const data = await response.json()
-        const text = data?.candidates?.[0]?.content?.parts?.[0]?.text
-        if (typeof text === "string" && text.trim()) return NextResponse.json({ text, model })
+        let generatedText = data?.candidates?.[0]?.content?.parts?.[0]?.text
+        if (typeof generatedText === "string" && generatedText.trim()) {
+          let completeText = generatedText.trim()
+          for (let continuation = 0; continuation < 4; continuation += 1) {
+            const missing = getMissingSections(completeText, normalizedPackageType)
+            if (!missing.length) break
+            const continuationPrompt = [
+              "CONTINUATION REQUIRED.",
+              "The previous response stopped before the package was complete.",
+              "Protocol: " + normalizedPackageType,
+              "Topic: " + topic.trim(),
+              "Language: " + normalizedLanguage,
+              "Requested length: " + selectedLength + " minutes",
+              "Missing sections: " + missing.join(", "),
+              "",
+              "Existing package tail for continuity:",
+              completeText.slice(-18000),
+              "",
+              "AUTHORITATIVE PROTOCOL:",
+              masterPrompt || "Follow the selected protocol.",
+              "",
+              "Output ONLY the missing sections, starting with the lowest missing section number.",
+              "Never repeat an existing section. Never summarize a missing section.",
+            ].join("\n")
+            const continuationResponse = await fetch(
+              `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  contents: [{ parts: [{ text: continuationPrompt }] }],
+                  generationConfig: { temperature: 0.6, maxOutputTokens: Math.min(40000, Math.max(12000, maxOutputTokens)) },
+                }),
+                signal: AbortSignal.timeout(55_000),
+              },
+            )
+            if (!continuationResponse.ok) break
+            const continuationData = await continuationResponse.json()
+            const continuationText = continuationData?.candidates?.[0]?.content?.parts?.[0]?.text
+            if (typeof continuationText !== "string" || !continuationText.trim()) break
+            completeText += "\n\n" + continuationText.trim()
+          }
+          const remaining = getMissingSections(completeText, normalizedPackageType)
+          if (!remaining.length) return NextResponse.json({ text: completeText, model })
+          return NextResponse.json({
+            text: completeText,
+            model,
+            notice: "Gemini output ended early; continuation was attempted. Missing sections: " + remaining.join(", "),
+          })
+        }
       } catch {
         // Try the next free model when a model is unavailable or times out.
       } finally {
@@ -390,7 +483,7 @@ The heading line MUST contain the exact text (STORYTELLING SCRIPT). Use this lan
     }
 
     return NextResponse.json({
-      text: await createFallbackPackage(topic, normalizedLanguage, gradeLevel, selectedLength),
+      text: await createFallbackPackage(topic, normalizedLanguage, gradeLevel, selectedLength, normalizedPackageType),
       model: "fallback",
       notice: "Gemini models were unavailable. This package was created locally.",
     })
