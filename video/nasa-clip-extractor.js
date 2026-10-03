@@ -76,14 +76,6 @@ async function resolveVideoUrl(nasaId) {
   }
 
   throw new Error(`No downloadable NASA/SVS video URL found for ${nasaId}`)
-  }
-
-  return {
-    videoUrl,
-    source: "svs.gsfc.nasa.gov",
-    svsId,
-    title: candidate.title || null,
-  }
 }
 
 function clampClipWindow(start, end, maxDuration = 5, minDuration = 2) {
