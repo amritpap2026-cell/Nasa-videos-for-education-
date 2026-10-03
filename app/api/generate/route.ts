@@ -460,7 +460,11 @@ ${prompt}`,
     const safeLengthValue = Number.isFinite(requestedLength) ? Math.min(maxAllowedLength, Math.max(minimumLength, Math.round(requestedLength))) : packageType === "shorts" ? 60 : 10
     const selectedLength = `0-${safeLengthValue}`
     const normalizedPackageType = ["youtube", "lesson", "shorts"].includes(packageType) ? packageType : "youtube"
-    if (!key) return NextResponse.json({ text: await createFallbackPackage(topic, normalizedLanguage, gradeLevel, selectedLength, normalizedPackageType), model: "local master-prompt fallback" })
+    if (!key) {
+      return NextResponse.json({
+        error: "A Gemini API key is required to generate a complete production package. No incomplete fallback package is returned.",
+      }, { status: 503 })
+    }
     let masterPrompt = ""
     try {
       const promptResponse = await fetch(protocolPromptUrls[normalizedPackageType], { signal: AbortSignal.timeout(8_000), next: { revalidate: 3600 } })
@@ -518,7 +522,10 @@ ${prompt}`,
     ].join("\n")
 
     const scriptModels = await getAvailableModels(key)
+    const maxScriptContinuations = 8
+
     for (const model of scriptModels) {
+      let scriptDraft = ""
       try {
         const response = await fetch(
           `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`,
@@ -529,27 +536,72 @@ ${prompt}`,
               contents: [{ parts: [{ text: scriptPrompt }] }],
               generationConfig: {
                 temperature: 0.65,
-                maxOutputTokens: Math.min(30000, Math.max(8000, Math.round(scriptTargetWords * 2.2) + 2500)),
+                maxOutputTokens: Math.min(60000, Math.max(12000, Math.round(scriptTargetWords * 2.4) + 4000)),
               },
             }),
             signal: AbortSignal.timeout(requestTimeoutMs),
           },
         )
         if (!response.ok) continue
+
         const data = await response.json()
         const candidate = data?.candidates?.[0]
-        const text = candidate?.content?.parts?.map((part: { text?: string }) => part?.text || "").join("")?.trim()
-        if (!text) continue
-        const wordCount = getWordCount(text)
-        if (wordCount < Math.round(scriptTargetWords * 0.95)) continue
-        authoritativeScript = text
-        scriptModel = model
-        break
+        scriptDraft = candidate?.content?.parts?.map((part: { text?: string }) => part?.text || "").join("")?.trim() || ""
+        if (!scriptDraft) continue
+
+        for (let continuation = 0; continuation < maxScriptContinuations && getWordCount(scriptDraft) < scriptTargetWords; continuation += 1) {
+          const continuationPrompt = [
+            "CONTINUE THE SAME WORD-FOR-WORD SCRIPT. DO NOT RESTART IT.",
+            "The previous generation stopped before the requested script length.",
+            "Continue naturally from the exact end of the previous text until the complete requested runtime is covered.",
+            "",
+            "TOPIC: " + topic.trim(),
+            "OUTPUT LANGUAGE: " + normalizedLanguage,
+            "STUDENT LEVEL: " + gradeLevel,
+            "REQUESTED LENGTH: " + selectedLength + " minutes",
+            "TARGET SCRIPT LENGTH: at least " + scriptTargetWords + " words.",
+            "CURRENT SCRIPT WORDS: " + getWordCount(scriptDraft),
+            "",
+            "OUTPUT ONLY THE NEW CONTINUATION TEXT.",
+            "Do not repeat the previous ending.",
+            "Do not add a heading, notes, outline, summary, or commentary.",
+            "Continue the story/explanation and finish with a proper conclusion when the target runtime is reached.",
+            "",
+            "END OF CURRENT SCRIPT:",
+            scriptDraft.slice(-24000),
+          ].join("\n")
+
+          const continuationResponse = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                contents: [{ parts: [{ text: continuationPrompt }] }],
+                generationConfig: {
+                  temperature: 0.55,
+                  maxOutputTokens: Math.min(30000, Math.max(8000, Math.round((scriptTargetWords - getWordCount(scriptDraft)) * 2.4) + 2500)),
+                },
+              }),
+              signal: AbortSignal.timeout(requestTimeoutMs),
+            },
+          )
+          if (!continuationResponse.ok) break
+          const continuationData = await continuationResponse.json()
+          const continuationText = continuationData?.candidates?.[0]?.content?.parts?.map((part: { text?: string }) => part?.text || "").join("")?.trim()
+          if (!continuationText) break
+          scriptDraft = (scriptDraft + "\n\n" + continuationText).trim()
+        }
+
+        if (getWordCount(scriptDraft) >= scriptTargetWords) {
+          authoritativeScript = scriptDraft
+          scriptModel = model
+          break
+        }
       } catch {
         continue
       }
     }
-
     if (!authoritativeScript) {
       return NextResponse.json({
         error: "Gemini could not produce the complete word-for-word script at the requested length. No incomplete package was accepted.",
@@ -691,7 +743,7 @@ ${prompt}`,
             const existingNumbers = getGeneratedSectionNumbers(completeText)
             const newBlocks = replacementBlocks.filter((block) => !existingNumbers.has(block.number) && !replacementNumbers.has(block.number))
             if (newBlocks.length) {
-              completeText += "\n\n" + newBlocks.map((block) => `${normalizedPackageType === "youtube" ? "PART" : "SECTION"} ${block.number}\\n${block.body}`).join("\n\n")
+              completeText += "\n\n" + newBlocks.map((block) => `${normalizedPackageType === "youtube" ? "PART" : "SECTION"} ${block.number}\n${block.body}`).join("\n\n")
             }
             audit = auditPackage(completeText, normalizedPackageType, durationValue)
           }
