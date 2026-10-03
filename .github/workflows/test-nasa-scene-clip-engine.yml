@@ -40,7 +40,7 @@ jobs:
               }
             ]
           }
-EOF
+          EOF
 
       - name: Run integrated scene engine
         run: |
