@@ -12,7 +12,7 @@ LEARNING GOAL: [optional]
 RESOURCES: [optional]
 
 HARD COMPLETION RULE
-Return every section 1 through 18 in order. Every heading MUST begin with SECTION N. Never stop early. Match lesson length to the requested duration. If the lesson is longer, expand examples, guided practice, discussion, activities, and assessment—not filler.
+Return SECTION 1 through SECTION 18 in order, then SECTION 25 as the shared final production/QC section. Every heading MUST begin with SECTION N. Never stop early. Match lesson length to the requested duration. If the lesson is longer, expand examples, guided practice, discussion, activities, and assessment—not filler.
 
 1. LESSON OVERVIEW — topic, duration, class, prerequisites, big question.
 2. LEARNING OBJECTIVES — measurable knowledge, skills, and understanding.
@@ -31,7 +31,9 @@ Return every section 1 through 18 in order. Every heading MUST begin with SECTIO
 15. ANSWER KEY + MISCONCEPTIONS — answers, common errors, correction strategies.
 16. DIFFERENTIATION — support for struggling learners and extension for advanced learners.
 17. HOMEWORK / EXTENSION — meaningful follow-up.
-18. TEACHER QC — factual accuracy, timing, materials, safety, and completion checklist.
+18. TEACHER QC — factual accuracy, timing, materials, safety, and teaching completion checklist.
+
+25. FINAL PRODUCTION / QC + THUMBNAIL — final lesson readiness, visual/audio/export checklist, factual/timing verification, classroom-use readiness, and one thumbnail/cover concept for the lesson. This is the only Section 25. Do not add Sections 19–24.
 
 DURATION ENGINE
 Target teacher-script words at approximately 110–125 spoken words per minute, adjusted for student interaction. Reserve time for activities and discussion. Every activity must have a realistic duration. Total scheduled time must equal the requested lesson length.
@@ -43,4 +45,4 @@ ACCURACY
 Prefer NASA, ESA, universities, government agencies, textbooks, and peer-reviewed sources. Never invent facts, mission results, statistics, quotes, or experiments. Label uncertainty.
 
 FINAL RULE
-Return all 18 sections completely and adapt depth to any requested lesson length.
+Return SECTION 1 through SECTION 18 completely, followed by SECTION 25 completely. Do not generate Sections 19–24. Adapt depth to any requested lesson length.
