@@ -52,9 +52,22 @@ async function getSvsCaptionFallback(nasaId) {
   if (!pageRes.ok) return null
 
   const html = await pageRes.text()
-  const links = [...html.matchAll(/https?:\\/\\/[^"'\\s<>]+\\.(?:srt|vtt)(?:\\?[^"'\\s<>]*)?/gi)]
-    .map((match) => match[0].replace(/&amp;/g, "&"))
-  const captionUrls = [...new Set(links)]
+  const links = []
+  const linkPattern = /(?:href|src)=["']([^"']+\\.(?:srt|vtt)(?:\\?[^"']*)?)["']/gi
+
+  for (const match of html.matchAll(linkPattern)) {
+    links.push(match[1].replace(/&amp;/g, "&"))
+  }
+
+  const captionUrls = [...new Set(
+    links.map((link) => {
+      try {
+        return new URL(link, pageUrl).href
+      } catch {
+        return null
+      }
+    }).filter(Boolean)
+  )]
 
   for (const captionUrl of captionUrls) {
     const captionRes = await fetch(captionUrl)
