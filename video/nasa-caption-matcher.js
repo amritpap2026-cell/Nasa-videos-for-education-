@@ -43,7 +43,7 @@ async function getSvsCaptionFallback(nasaId) {
   // Many NASA SVS videos are surfaced through images.nasa.gov with a
   // composite ID such as GSFC_20200302_M13568_OSIRISReXBH. The same
   // video has its downloadable SRT/VTT on the NASA SVS page.
-  const match = String(nasaId).match(/(?:^|_)M(\\d+)(?:_|$)/i)
+  const match = String(nasaId).match(/M(\d+)/i)
   if (!match) return null
 
   const svsId = match[1]
