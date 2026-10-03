@@ -28,9 +28,9 @@ export async function POST(request: Request) {
     .trim()
   const subjectWords = cleanedTopic
     .split(" ")
-    .map((word) => word.trim())
+    .map((word: string) => word.trim())
     .filter(Boolean)
-    .filter((word) => !stopWords.has(word.toLowerCase()))
+    .filter((word: string) => !stopWords.has(word.toLowerCase()))
   const subjectQuery = subjectWords.slice(0, 5).join(" ")
   const queries = Array.from(
     new Set(
@@ -89,7 +89,7 @@ export async function POST(request: Request) {
 
   const dedupedNasaItems = Array.from(
     new Map(
-      nasaItems.map((item: { nasaId?: string; url?: string }, index: number) => [
+      nasaItems.map((item: { nasaId?: string; mediaType?: string; url?: string }, index: number) => [
         item.nasaId || `${item.mediaType}-${item.url || index}`,
         item,
       ])
@@ -169,7 +169,7 @@ export async function POST(request: Request) {
   }
 
   const pexelsResponse = await fetch(
-    `https://api.pexels.com/v1/search?query=${query}&per_page=24`,
+    `https://api.pexels.com/v1/search?query=${encodeURIComponent(visualRequirement)}&per_page=24`,
     {
       headers: { Authorization: pexelsKey },
       next: { revalidate: 3600 },
