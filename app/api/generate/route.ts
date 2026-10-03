@@ -15,10 +15,10 @@ const protocolPromptUrls: Record<string, string> = {
   shorts: "https://raw.githubusercontent.com/amritpap2026-cell/Nasa-videos-for-education-/nasa-asset-engine/universal_shorts_master_prompt.txt",
 }
 
-function expectedPackageSections(packageType: string) {
-  if (packageType === "lesson") return 18
-  if (packageType === "shorts") return 15
-  return 25
+function requiredPackageSections(packageType: string) {
+  if (packageType === "lesson") return [...Array.from({ length: 18 }, (_, index) => index + 1), 25]
+  if (packageType === "shorts") return [...Array.from({ length: 15 }, (_, index) => index + 1), 25]
+  return Array.from({ length: 25 }, (_, index) => index + 1)
 }
 
 function getGeneratedSectionNumbers(text: string) {
@@ -30,9 +30,9 @@ function getGeneratedSectionNumbers(text: string) {
 }
 
 function getMissingSections(text: string, packageType: string) {
-  const max = expectedPackageSections(packageType)
+  const required = requiredPackageSections(packageType)
   const found = getGeneratedSectionNumbers(text)
-  return Array.from({ length: max }, (_, index) => index + 1).filter((n) => !found.has(n))
+  return required.filter((n) => !found.has(n))
 }
 
 function pcmBase64ToWavBase64(base64: string, sampleRate = 24000, channels = 1, bitsPerSample = 16) {
@@ -401,8 +401,8 @@ ${prompt}`,
       "- Follow the selected protocol exactly.",
       "- Do not mix YouTube, classroom, and Shorts protocols.",
       "- For YouTube, output PART 1 through PART 25 exactly once, in numerical order.",
-      "- For Classroom Lesson, output SECTION 1 through SECTION 18 exactly once.",
-      "- For Shorts, output SECTION 1 through SECTION 15 exactly once.",
+      "- For Classroom Lesson, output SECTION 1 through SECTION 18, then SECTION 25 exactly once. Do not output Sections 19–24.",
+      "- For Shorts, output SECTION 1 through SECTION 15, then SECTION 25 exactly once. Do not output Sections 16–24.",
       "- Never stop early because the response is long.",
       "- Match all timestamps and narration to the requested duration.",
       "- If a long package cannot fit in one response, the system will request continuation; then output only the missing sections requested.",
