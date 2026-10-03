@@ -185,6 +185,26 @@ export async function POST(request: Request) {
       const { GoogleGenAI } = await import("@google/genai")
       const ai = new GoogleGenAI({ apiKey: key })
 
+      if (mode === "thumbnail") {
+        const prompt = typeof requestBody?.prompt === "string" ? requestBody.prompt.trim() : ""
+        if (!prompt) return NextResponse.json({ error: "Thumbnail concepts are required." }, { status: 400 })
+        const response = await ai.models.generateContent({
+          model: "gemini-3.1-flash-image",
+          contents: `Create ONE polished YouTube thumbnail using ALL of these Part 25 thumbnail concepts as creative guidance. Combine compatible ideas intelligently rather than making a collage. Preserve the strongest subject, composition, visual hook, text guidance, and negative constraints from the concepts. Make it 16:9, mobile-readable, visually striking, educational, and scientifically accurate.
+
+PART 25 — THUMBNAIL CONCEPTS:
+${prompt}`,
+          config: {
+            responseModalities: ["IMAGE"],
+            imageConfig: { aspectRatio: "16:9", imageSize: "2K" },
+          },
+        })
+        const part = response.candidates?.[0]?.content?.parts?.find((item: { inlineData?: { data?: string; mimeType?: string } }) => item.inlineData?.data)
+        const data = part?.inlineData?.data
+        if (!data) return NextResponse.json({ error: "Gemini returned no generated thumbnail." }, { status: 502 })
+        return NextResponse.json({ status: "complete", type: "thumbnail", url: "data:" + (part?.inlineData?.mimeType || "image/png") + ";base64," + data })
+      }
+
       if (mode === "ai-image") {
         const prompt = typeof requestBody?.prompt === "string" ? requestBody.prompt.trim() : ""
         if (!prompt) return NextResponse.json({ error: "An image generation prompt is required." }, { status: 400 })
