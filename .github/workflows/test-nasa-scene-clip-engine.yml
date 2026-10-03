@@ -23,23 +23,23 @@ jobs:
         run: |
           mkdir -p tmp
           cat > tmp/scene.json <<'EOF'
-{
-  "context": {
-    "title": "Why do black holes have such strong gravity?",
-    "description": "Educational explanation of black holes and their extreme gravity.",
-    "script": "A black hole has gravity so strong that even light cannot escape.",
-    "scene": "Explain the extreme gravity of a black hole.",
-    "visualRequirement": "Black hole, gravity, accretion disk, X-ray emission"
-  },
-  "candidates": [
-    {
-      "nasaId": "GSFC_20200302_M13568_OSIRISReXBH",
-      "title": "OSIRIS-REx Observes a Black Hole",
-      "description": "Visualization of a newly discovered black hole and its surrounding disk.",
-      "score": 0.9
-    }
-  ]
-}
+          {
+            "context": {
+              "title": "Why do black holes have such strong gravity?",
+              "description": "Educational explanation of black holes and their extreme gravity.",
+              "script": "A black hole has gravity so strong that even light cannot escape.",
+              "scene": "Explain the extreme gravity of a black hole.",
+              "visualRequirement": "Black hole, gravity, accretion disk, X-ray emission"
+            },
+            "candidates": [
+              {
+                "nasaId": "GSFC_20200302_M13568_OSIRISReXBH",
+                "title": "OSIRIS-REx Observes a Black Hole",
+                "description": "Visualization of a newly discovered black hole and its surrounding disk.",
+                "score": 0.9
+              }
+            ]
+          }
 EOF
 
       - name: Run integrated scene engine
