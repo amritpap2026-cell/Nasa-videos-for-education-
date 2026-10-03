@@ -79,7 +79,11 @@ export default function CosmosStudio() {
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || "Generation failed")
       setResult(data)
-      setStoryText("")
+      const generatedStory = extractPart11(data.text || "")
+      setStoryText(generatedStory)
+      if (generatedStory) {
+        setStatus("Story package generated. Part 11 storytelling script is ready for voiceover.")
+      }
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Generation failed. Please try again.")
     } finally {
