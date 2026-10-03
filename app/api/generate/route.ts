@@ -10,6 +10,27 @@ const preferredModels = [
 const requestTimeoutMs = 25_000
 const masterPromptUrl = "https://raw.githubusercontent.com/amritpap2026-cell/Nasa-videos-for-education-/main/universal_youtube_master_prompt.txt"
 
+function pcmBase64ToWavBase64(base64: string, sampleRate = 24000, channels = 1, bitsPerSample = 16) {
+  const pcm = Buffer.from(base64, "base64")
+  const byteRate = sampleRate * channels * (bitsPerSample / 8)
+  const blockAlign = channels * (bitsPerSample / 8)
+  const header = Buffer.alloc(44)
+  header.write("RIFF", 0)
+  header.writeUInt32LE(36 + pcm.length, 4)
+  header.write("WAVE", 8)
+  header.write("fmt ", 12)
+  header.writeUInt32LE(16, 16)
+  header.writeUInt16LE(1, 20)
+  header.writeUInt16LE(channels, 22)
+  header.writeUInt32LE(sampleRate, 24)
+  header.writeUInt32LE(byteRate, 28)
+  header.writeUInt16LE(blockAlign, 32)
+  header.writeUInt16LE(bitsPerSample, 34)
+  header.write("data", 36)
+  header.writeUInt32LE(pcm.length, 40)
+  return Buffer.concat([header, pcm]).toString("base64")
+}
+
 async function getAvailableModels(key: string) {
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), requestTimeoutMs)
@@ -182,7 +203,16 @@ export async function POST(request: Request) {
           if (!response.ok) continue
           const data = await response.json()
           const audio = data?.candidates?.[0]?.content?.parts?.find((part: { inlineData?: { data?: string; mimeType?: string } }) => part.inlineData?.data)?.inlineData
-          if (audio?.data) return NextResponse.json({ audio: audio.data, mimeType: audio.mimeType || "audio/wav", model })
+          if (audio?.data) {
+            const mimeType = typeof audio.mimeType === "string" ? audio.mimeType : ""
+            const isPcm = mimeType.toLowerCase().includes("audio/l16") || mimeType.toLowerCase().includes("pcm")
+            const wavAudio = isPcm ? pcmBase64ToWavBase64(audio.data, 24000, 1, 16) : audio.data
+            return NextResponse.json({
+              audio: wavAudio,
+              mimeType: isPcm ? "audio/wav" : mimeType || "audio/wav",
+              model,
+            })
+          }
         } catch {
           // Try the next available Gemini TTS model.
         } finally {
