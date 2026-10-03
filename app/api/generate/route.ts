@@ -3,8 +3,10 @@ import { NextResponse } from "next/server"
 export const maxDuration = 300
 
 const preferredModels = [
-  "gemini-2.5-flash-lite",
+  "gemini-3.5-flash",
+  "gemini-2.5-pro",
   "gemini-2.5-flash",
+  "gemini-2.5-flash-lite",
   "gemini-2.0-flash",
   "gemini-1.5-flash",
 ]
@@ -87,6 +89,10 @@ function auditPackage(text: string, packageType: string, durationValue: number) 
   const missing = required.filter((number) => !numbers.includes(number))
   const duplicates = required.filter((number) => numbers.filter((value) => value === number).length > 1)
   const wrongOrder = required.some((number, index) => numbers[index] !== number)
+  const emptySections = blocks
+    .filter((block) => required.includes(block.number))
+    .filter((block) => getWordCount(block.body) < 8)
+    .map((block) => block.number)
   const script = getMainScript(text, packageType)
   const scriptWords = getWordCount(script)
   const minimumScriptWords = getScriptMinimumWords(packageType, durationValue)
@@ -98,8 +104,8 @@ function auditPackage(text: string, packageType: string, durationValue: number) 
     : timelineEndSeconds >= Math.max(1, Math.round(targetSeconds * 0.95))
   const wrapperPass = packageType !== "youtube" || /<<<STORYTELLING_SCRIPT_START>>>[\s\S]*<<<STORYTELLING_SCRIPT_END>>>/i.test(text)
   return {
-    passed: missing.length === 0 && duplicates.length === 0 && !wrongOrder && scriptPass && timelinePass && wrapperPass,
-    missing, duplicates, wrongOrder, scriptWords, minimumScriptWords, timelineEndSeconds, targetSeconds, scriptPass, timelinePass, wrapperPass,
+    passed: missing.length === 0 && duplicates.length === 0 && emptySections.length === 0 && !wrongOrder && scriptPass && timelinePass && wrapperPass,
+    missing, duplicates, emptySections, wrongOrder, scriptWords, minimumScriptWords, timelineEndSeconds, targetSeconds, scriptPass, timelinePass, wrapperPass,
   }
 }
 
@@ -533,6 +539,7 @@ ${prompt}`,
               "Requested length: " + selectedLength + " minutes",
               "Required sections: " + requiredPackageSections(normalizedPackageType).join(", "),
               "Missing sections: " + (missing.length ? missing.join(", ") : "none"),
+              "Empty/too-short sections: " + (audit.emptySections.length ? audit.emptySections.join(", ") : "none"),
               "Current script section: " + scriptSection,
               "Script minimum words: " + audit.minimumScriptWords,
               "Current script words: " + audit.scriptWords,
@@ -540,7 +547,9 @@ ${prompt}`,
               "Current timeline end seconds: " + audit.timelineEndSeconds,
               needsScriptRepair ? "SCRIPT REPAIR REQUIRED: output a complete replacement of the script section for the entire requested runtime. Do not summarize or shorten it." : "",
               needsTimelineRepair ? "TIMELINE REPAIR REQUIRED: output a complete replacement of the timeline section so it reaches the requested runtime and aligns with the full script." : "",
-              missing.length ? "SECTION COMPLETION REQUIRED: generate every missing section in numerical order without repeating existing sections." : "",
+              missing.length || audit.emptySections.length
+                ? "SECTION COMPLETION REQUIRED: generate every missing or too-short section with substantial production content, in numerical order, without repeating existing sections."
+                : "",
               "",
               "Current script that must be preserved or replaced if repair is required:",
               getMainScript(completeText, normalizedPackageType).slice(0, 30000),
@@ -603,10 +612,9 @@ ${prompt}`,
     }
 
     return NextResponse.json({
-      text: await createFallbackPackage(topic, normalizedLanguage, gradeLevel, selectedLength, normalizedPackageType),
-      model: "fallback",
-      notice: "Gemini models were unavailable. This package was created locally.",
-    })
+      error: "No Gemini model produced a package that passed the full script and protocol audit. The app will not return an incomplete package.",
+      audit: { passed: false, reason: "All configured Gemini models failed the completion audit." },
+    }, { status: 503 })
   } catch {
     return NextResponse.json({ error: "Invalid request. Please try again." }, { status: 400 })
   }
