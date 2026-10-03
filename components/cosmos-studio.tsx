@@ -100,15 +100,20 @@ export default function CosmosStudio() {
       })
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || "Generation failed")
-      setResult(data)
       if (!data.audit?.passed) {
         throw new Error("The server returned a package that did not pass the completion audit. No incomplete package was accepted.")
       }
-      const generatedStory = extractPackageScript(data.text || "", packageType)
-      setStoryText(generatedStory)
-      if (generatedStory) {
-        setStatus(`Complete ${packageType === "lesson" ? "classroom" : packageType === "shorts" ? "Shorts" : "YouTube"} package generated and audited. Script: ${data.audit.scriptWords} words; required minimum: ${data.audit.minimumScriptWords}.`)
+      // Only expose the package after the server completion audit has passed.
+      setResult(data)
+      const generatedStory = typeof data.script === "string" && data.script.trim()
+        ? data.script.trim()
+        : extractPackageScript(data.text || "", packageType)
+      if (!generatedStory) {
+        setResult(null)
+        throw new Error("The completed package did not contain its required storytelling script. No incomplete package was shown.")
       }
+      setStoryText(generatedStory)
+      setStatus(`Complete ${packageType === "lesson" ? "classroom" : packageType === "shorts" ? "Shorts" : "YouTube"} package generated and audited. Script: ${data.audit.scriptWords} words; required minimum: ${data.audit.minimumScriptWords}.`)
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Generation failed. Please try again.")
     } finally {
