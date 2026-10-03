@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server"
 
+export const maxDuration = 300
+
 const preferredModels = [
   "gemini-2.5-flash-lite",
   "gemini-2.5-flash",
