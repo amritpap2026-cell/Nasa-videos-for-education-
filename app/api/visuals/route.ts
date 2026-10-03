@@ -150,7 +150,7 @@ export async function POST(request: Request) {
     })
   )
 
-  const nasaItems = nasaResults.flatMap(({ data }) =>
+  let nasaItems = nasaResults.flatMap(({ data }) =>
     data.flatMap((data, index) => {
       const mediaType = index === 0 ? "image" : "video"
       return (data.collection?.items || [])
