@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { matchNasaCaptions } from "../../../video/nasa-caption-matcher"
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}))
@@ -6,6 +7,10 @@ export async function POST(request: Request) {
   if (!topic) {
     return NextResponse.json({ error: "A topic is required." }, { status: 400 })
   }
+
+  const script = typeof body.script === "string" ? body.script.slice(0, 12000) : ""
+  const visualRequirement =
+    typeof body.visualRequirement === "string" ? body.visualRequirement.trim() : topic
 
   const query = encodeURIComponent(topic)
 
@@ -58,10 +63,56 @@ export async function POST(request: Request) {
   })
 
   if (nasaItems.length) {
+    const videoItems = nasaItems
+      .filter((item) => item.mediaType === "video" && item.nasaId)
+      .slice(0, 6)
+
+    if (script && videoItems.length) {
+      const enriched = await Promise.all(
+        videoItems.map(async (item) => {
+          try {
+            const result = await matchNasaCaptions(
+              item.nasaId,
+              {
+                title: item.title,
+                description: item.description,
+                script,
+                visualRequirement,
+              },
+              { minimumScore: 0.08, limit: 2 }
+            )
+
+            return {
+              ...item,
+              captionUrl: result.captionUrl || null,
+              captionMatchCount: result.matches.length,
+              captionMatches: result.matches,
+            }
+          } catch (error) {
+            return {
+              ...item,
+              captionUrl: null,
+              captionMatchCount: 0,
+              captionMatches: [],
+              captionError: error instanceof Error ? error.message : "Caption matching failed",
+            }
+          }
+        })
+      )
+
+      const byId = new Map(enriched.map((item) => [item.nasaId, item]))
+      for (const item of nasaItems) {
+        const match = item.nasaId ? byId.get(item.nasaId) : undefined
+        if (match) Object.assign(item, match)
+      }
+    }
+
     return NextResponse.json({
       source: "NASA",
       items: nasaItems.slice(0, 36),
       notice: `NASA · ${nasaItems.length} result${nasaItems.length === 1 ? "" : "s"} for “${topic}”`,
+      sceneMatching: Boolean(script),
+      extraction: "timestamped NASA clips are prepared by the separate FFmpeg worker",
     })
   }
 
