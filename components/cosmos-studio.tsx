@@ -292,12 +292,6 @@ export default function CosmosStudio() {
     setAiVisualOpen(true)
   }
 
-  function openAiVisuals(type: "image" | "video" = "video") {
-    setAiVisualGenerationType(type)
-    setAiVisualScene("")
-    setAiVisualOpen(true)
-  }
-
   function extractPart25(packageText: string) {
     const text = packageText.replace(/\r\n/g, "\n").replace(/\r/g, "\n")
     const match = text.match(/(?:PART|SECTION|STEP|भाग)\s*25[^\n]*\n([\s\S]*?)(?=\n(?:PART|SECTION|STEP|भाग)\s*26\b|$)/i)
