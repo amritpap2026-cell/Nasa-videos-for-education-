@@ -3,7 +3,21 @@
 import { useState } from "react"
 import { ArrowRight, Check, Film, Globe2, Lightbulb, Search, Sparkles, Volume2, X } from "lucide-react"
 
-type Result = { text: string; model: string; notice?: string }
+type PackageAudit = {
+  passed: boolean
+  missing: number[]
+  duplicates: number[]
+  emptySections: number[]
+  wrongOrder: boolean
+  scriptWords: number
+  minimumScriptWords: number
+  timelineEndSeconds: number
+  targetSeconds: number
+  scriptPass: boolean
+  timelinePass: boolean
+  wrapperPass: boolean
+}
+type Result = { text: string; model: string; notice?: string; audit?: PackageAudit }
 
 type VisualItem = {
   source: string
@@ -25,7 +39,7 @@ export default function CosmosStudio() {
   const [topic, setTopic] = useState("")
   const [language, setLanguage] = useState("English")
   const [gradeLevel, setGradeLevel] = useState("Class 8–10")
-  const [length, setLength] = useState("0-10")
+  const [lengthValue, setLengthValue] = useState("10")
   const [packageType, setPackageType] = useState("youtube")
   const [loading, setLoading] = useState(false)
   const [status, setStatus] = useState("")
@@ -38,6 +52,14 @@ export default function CosmosStudio() {
   const [voiceoverUsed, setVoiceoverUsed] = useState(false)
   const [storyText, setStoryText] = useState("")
   const [packageDone, setPackageDone] = useState(false)
+  const [aiVisualOpen, setAiVisualOpen] = useState(false)
+  const [aiVisualType, setAiVisualType] = useState<"image" | "video">("video")
+  const [aiVisualPrompt, setAiVisualPrompt] = useState("")
+  const [aiVisualScene, setAiVisualScene] = useState("")
+  const [aiVisualGenerating, setAiVisualGenerating] = useState(false)
+  const [aiVisualAsset, setAiVisualAsset] = useState<{ type: "image" | "video"; url: string; scene: string; prompt: string } | null>(null)
+  const [selectedYoutubeVisual, setSelectedYoutubeVisual] = useState<{ type: "image" | "video"; url: string; scene: string; prompt: string } | null>(null)
+
 
   // Visuals (Step 3) — independent modal
   const [visualsOpen, setVisualsOpen] = useState(false)
@@ -54,7 +76,7 @@ export default function CosmosStudio() {
       const response = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ topic, language, gradeLevel, length, packageType, mode: "brainstorm" }),
+        body: JSON.stringify({ topic, language, gradeLevel, length: `0-${lengthValue}`, packageType, mode: "brainstorm" }),
       })
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || "Topic search failed")
@@ -74,12 +96,24 @@ export default function CosmosStudio() {
       const response = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ topic, language, gradeLevel, length, packageType }),
+        body: JSON.stringify({ topic, language, gradeLevel, length: `0-${lengthValue}`, packageType }),
       })
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || "Generation failed")
+      if (!data.audit?.passed) {
+        throw new Error("The server returned a package that did not pass the completion audit. No incomplete package was accepted.")
+      }
+      // Only expose the package after the server completion audit has passed.
       setResult(data)
-      setStoryText("")
+      const generatedStory = typeof data.script === "string" && data.script.trim()
+        ? data.script.trim()
+        : extractPackageScript(data.text || "", packageType)
+      if (!generatedStory) {
+        setResult(null)
+        throw new Error("The completed package did not contain its required storytelling script. No incomplete package was shown.")
+      }
+      setStoryText(generatedStory)
+      setStatus(`Complete ${packageType === "lesson" ? "classroom" : packageType === "shorts" ? "Shorts" : "YouTube"} package generated and audited. Script: ${data.audit.scriptWords} words; required minimum: ${data.audit.minimumScriptWords}.`)
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Generation failed. Please try again.")
     } finally {
@@ -101,6 +135,20 @@ export default function CosmosStudio() {
       setStatus(`Open ${name}, then copy and paste only the storytelling script.`)
       window.open(url, "_blank", "noopener,noreferrer")
     }
+  }
+
+  function extractPackageScript(packageText: string, type: string) {
+    if (type === "lesson") {
+      const text = packageText.replace(/\r\n/g, "\n").replace(/\r/g, "\n")
+      const match = text.match(/(?:SECTION|STEP|भाग)\s*11\b[^\n]*\n([\s\S]*?)(?=\n(?:SECTION|STEP|भाग)\s*12\b|$)/i)
+      return match?.[1]?.trim() || ""
+    }
+    if (type === "shorts") {
+      const text = packageText.replace(/\r\n/g, "\n").replace(/\r/g, "\n")
+      const match = text.match(/(?:SECTION|STEP|भाग)\s*5\b[^\n]*\n([\s\S]*?)(?=\n(?:SECTION|STEP|भाग)\s*6\b|$)/i)
+      return match?.[1]?.trim() || ""
+    }
+    return extractPart11(packageText)
   }
 
   function extractPart11(packageText: string) {
@@ -204,7 +252,11 @@ export default function CosmosStudio() {
       const response = await fetch("/api/visuals", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ topic: q }),
+        body: JSON.stringify({
+        topic: q,
+        script: storyText,
+        visualRequirement: q,
+      }),
       })
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || "Visual search failed")
@@ -235,6 +287,110 @@ export default function CosmosStudio() {
     setOpen(true)
     setVisualsOpen(false)
   }
+  function extractProtocolSection(packageText: string, sectionNumber: number, nextSectionNumber: number) {
+    const text = packageText.replace(/\r\n/g, "\n").replace(/\r/g, "\n")
+    const match = text.match(new RegExp(`(?:PART|SECTION|STEP|भाग)\\s*${sectionNumber}[^\\n]*\\n([\\s\\S]*?)(?=\\n(?:PART|SECTION|STEP|भाग)\\s*${nextSectionNumber}\\b|$)`, "i"))
+    return match?.[1]?.trim() || ""
+  }
+
+  function extractProtocolVisualPrompt(packageText: string, type: "image" | "video", protocol: string) {
+    if (protocol === "lesson") return extractProtocolSection(packageText, 10, 11)
+    if (protocol === "shorts") {
+      return extractProtocolSection(packageText, type === "image" ? 8 : 9, type === "image" ? 9 : 10)
+    }
+    return extractProtocolSection(packageText, type === "image" ? 13 : 14, type === "image" ? 14 : 15)
+  }
+
+  function setAiVisualGenerationType(type: "image" | "video") {
+    const packageText = result?.text || ""
+    setAiVisualType(type)
+    setAiVisualPrompt(extractProtocolVisualPrompt(packageText, type, packageType))
+    setAiVisualAsset(null)
+  }
+
+  function openAiVisuals(type: "image" | "video" = "video") {
+    setAiVisualGenerationType(type)
+    setAiVisualScene("")
+    setAiVisualOpen(true)
+  }
+
+  function extractPart25(packageText: string) {
+    const text = packageText.replace(/\r\n/g, "\n").replace(/\r/g, "\n")
+    const match = text.match(/(?:PART|SECTION|STEP|भाग)\s*25[^\n]*\n([\s\S]*?)(?=\n(?:PART|SECTION|STEP|भाग)\s*26\b|$)/i)
+    return match?.[1]?.trim() || ""
+  }
+
+  function generateThumbnail() {
+    const concepts = extractPart25(result?.text || "")
+    if (!concepts) {
+      setStatus("Could not find Section 25 (THUMBNAIL / FINAL PRODUCTION). Regenerate the package first.")
+      return
+    }
+    setAiVisualType("image")
+    setAiVisualPrompt(concepts)
+    setAiVisualScene("Thumbnail / cover")
+    setAiVisualAsset(null)
+    setAiVisualOpen(true)
+  }
+
+  async function generateAiVisual() {
+    if (!aiVisualPrompt.trim()) {
+      setStatus(`The selected ${packageType === "lesson" ? "Classroom" : packageType === "shorts" ? "Shorts" : "YouTube"} visual prompt is empty. Regenerate the package first.`)
+      return
+    }
+    setAiVisualGenerating(true)
+    setStatus("")
+    try {
+      const response = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mode: aiVisualScene.trim() === "Thumbnail / cover"
+            ? "thumbnail"
+            : aiVisualType === "image"
+              ? "ai-image"
+              : "ai-video",
+          prompt: aiVisualPrompt.trim(),
+          scene: aiVisualScene.trim(),
+        }),
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || "AI visual generation failed")
+      if (data.status === "processing") {
+        let operation = data.operation
+        for (let attempt = 0; attempt < 18; attempt += 1) {
+          await new Promise((resolve) => setTimeout(resolve, 5000))
+          const poll = await fetch("/api/generate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ mode: "ai-video-status", operation }),
+          })
+          const pollData = await poll.json()
+          if (!poll.ok) throw new Error(pollData.error || "Video generation status check failed")
+          if (pollData.status === "complete") {
+            setAiVisualAsset({ type: "video", url: pollData.url, scene: aiVisualScene.trim(), prompt: aiVisualPrompt.trim() })
+            setStatus("AI video generated. Click Use in YouTube Studio.")
+            return
+          }
+          if (pollData.status === "failed") throw new Error(pollData.error || "AI video generation failed")
+        }
+        throw new Error("Video generation is still processing. Please try again shortly.")
+      }
+      setAiVisualAsset({ type: "image", url: data.url, scene: aiVisualScene.trim(), prompt: aiVisualPrompt.trim() })
+      setStatus("AI image generated. Click Use in YouTube Studio.")
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "AI visual generation failed.")
+    } finally {
+      setAiVisualGenerating(false)
+    }
+  }
+
+  function useAiVisualInYoutubeStudio() {
+    if (!aiVisualAsset) return
+    setSelectedYoutubeVisual(aiVisualAsset)
+    setStatus("Selected AI visual for YouTube Studio scene/timeline placement.")
+  }
+
   function openVisuals() {
     setVisualsTopic(topic.trim() || visualsTopic)
     setOpen(false)
@@ -394,14 +550,26 @@ export default function CosmosStudio() {
             </div>
 
             <div className="field">
-              <label htmlFor="length">Video length (minutes)</label>
-              <select id="length" value={length} onChange={(e) => setLength(e.target.value)}>
-                <option value="0-5">0–5</option>
-                <option value="0-10">0–10</option>
-                <option value="0-15">0–15</option>
-                <option value="0-30">0–30</option>
-                <option value="0-60">0–60</option>
-              </select>
+              <label htmlFor="length">
+                {packageType === "shorts" ? "Short length (seconds)" : packageType === "lesson" ? "Lesson length (minutes)" : "Video length (minutes)"}
+              </label>
+              <input
+                id="length"
+                type="number"
+                min={packageType === "shorts" ? 10 : 1}
+                max={packageType === "shorts" ? 180 : 180}
+                step="1"
+                value={lengthValue}
+                onChange={(e) => {
+                  const value = e.target.value
+                  setLengthValue(value)
+                }}
+              />
+              <p className="field-hint">
+                {packageType === "shorts"
+                  ? "Use any short-form duration from 10–180 seconds."
+                  : "Use any duration from 1–180 minutes. The protocol expands or compresses the production plan to match it."}
+              </p>
             </div>
 
             {ideas.length > 0 && (
@@ -471,7 +639,7 @@ export default function CosmosStudio() {
             </div>
 
             <button className="generate" onClick={generate} disabled={loading || topic.trim().length < 3}>
-              {loading ? "Generating your package..." : "Generate YouTube package"}
+              {loading ? "Generating your package..." : packageType === "lesson" ? "Generate classroom lesson" : packageType === "shorts" ? "Generate Short" : "Generate YouTube package"}
             </button>
 
             {status && (
@@ -504,12 +672,11 @@ export default function CosmosStudio() {
                   style={{ marginTop: 18, padding: 18, border: "2px solid #b7ded1", borderRadius: 14, background: "#f4fbf7" }}
                 >
                   <label htmlFor="story-window">
-                    <strong>Part 11 storytelling script</strong>
+                    <strong>{packageType === "lesson" ? "Section 11 complete teacher script" : packageType === "shorts" ? "Section 5 complete Short script" : "Part 11 storytelling script"}</strong>
                   </label>
                   <p className="field-hint">
-                    This window stays blank until you press Extract Part 11. That copies only Part 11
-                    (STORYTELLING SCRIPT) from the first window — the narration above Part 12 — identically.
-                    Voiceover uses only this window.
+                    This window is automatically filled with the complete Part 11 (STORYTELLING SCRIPT)
+                    from the audited package. Voiceover uses only this window.
                   </p>
                   <button
                     className="secondary voice-play"
@@ -517,7 +684,7 @@ export default function CosmosStudio() {
                     onClick={extractPart11ToStoryWindow}
                     style={{ marginTop: 10 }}
                   >
-                    Extract Part 11
+                    Refresh Part 11
                   </button>
                   <textarea
                     id="story-window"
@@ -555,6 +722,19 @@ export default function CosmosStudio() {
                     }}
                   >
                     <Film size={16} /> Visuals
+                  </button>
+                  <button
+                    className="secondary voice-play"
+                    type="button"
+                    onClick={() => {
+                      setOpen(false)
+                      openAiVisuals("video")
+                    }}
+                  >
+                    <Sparkles size={16} /> AI image / video
+                  </button>
+                  <button className="secondary voice-play" type="button" onClick={generateThumbnail}>
+                    <Sparkles size={16} /> Generate thumbnail / cover
                   </button>
                 </div>
 
@@ -644,6 +824,100 @@ export default function CosmosStudio() {
                   </div>
                 </div>
               </div>
+            )}
+          </section>
+        </div>
+      )}
+
+      {/* ========== AI IMAGE / VIDEO GENERATION WINDOW ========== */}
+      {aiVisualOpen && (
+        <div
+          className="overlay"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setAiVisualOpen(false)
+          }}
+        >
+          <section
+            className="modal"
+            style={{ maxWidth: 960, width: "min(960px, calc(100vw - 32px))" }}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="ai-visual-title"
+          >
+            <div className="modal-head">
+              <div>
+                <div className="modal-kicker">AI Visual Studio</div>
+                <h2 id="ai-visual-title">Generate an image or video</h2>
+                <p className="muted">
+                  The default prompt comes from the same Gemini package/story used by this video.
+                  Edit it for the selected scene before sending it to your generation provider.
+                </p>
+              </div>
+              <button className="close" aria-label="Close AI visual generator" onClick={() => setAiVisualOpen(false)}>
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="field">
+              <p className="field-label">Generation type</p>
+              <div className="voice-buttons">
+                <button type="button" className={aiVisualType === "image" ? "voice active" : "voice"} onClick={() => setAiVisualGenerationType("image")}>
+                  AI Image
+                </button>
+                <button type="button" className={aiVisualType === "video" ? "voice active" : "voice"} onClick={() => setAiVisualGenerationType("video")}>
+                  AI Video
+                </button>
+              </div>
+            </div>
+
+            <div className="field">
+              <label htmlFor="ai-visual-scene">Script 12 scene / timestamp</label>
+              <input
+                id="ai-visual-scene"
+                value={aiVisualScene}
+                onChange={(e) => setAiVisualScene(e.target.value)}
+                placeholder="e.g. Scene 5 · 00:42–00:49"
+                maxLength={120}
+              />
+                      <label htmlFor="ai-visual-prompt">Default {packageType === "lesson" ? "Section 10" : packageType === "shorts" ? `Section ${aiVisualType === "image" ? "8" : "9"}` : `Part ${aiVisualType === "image" ? "13" : "14"}`} generation prompt</label>
+              <textarea
+                id="ai-visual-prompt"
+                className="package-editor"
+                style={{ minHeight: 300, width: "100%", resize: "vertical" }}
+                value={aiVisualPrompt}
+                onChange={(e) => setAiVisualPrompt(e.target.value)}
+              />
+              <p className="field-hint">
+                Defaults are protocol-specific and load automatically: YouTube uses Parts 13/14, Classroom uses Section 10, and Shorts use Sections 8/9. Changing AI Image / AI Video reloads the matching section from the current package.
+              </p>
+            </div>
+
+            <div className="voice-actions">
+              <button className="secondary voice-play" type="button" onClick={generateAiVisual} disabled={aiVisualGenerating || !aiVisualPrompt.trim()}>
+                {aiVisualGenerating ? "Generating..." : "Generate AI " + aiVisualType}
+              </button>
+              <button className="secondary voice-play" type="button" onClick={useAiVisualInYoutubeStudio} disabled={!aiVisualAsset}>
+                Use in YouTube Studio
+              </button>
+              <button className="secondary voice-play" type="button" onClick={() => setAiVisualOpen(false)}>
+                Done
+              </button>
+            </div>
+
+            {aiVisualAsset && (
+              <div style={{ marginTop: 16, border: "1px solid #d7e9e8", borderRadius: 12, padding: 12 }}>
+                <strong>Generated {aiVisualAsset.type}</strong>
+                {aiVisualAsset.type === "image" ? (
+                  <img src={aiVisualAsset.url} alt="Generated AI visual" style={{ width: "100%", marginTop: 10, borderRadius: 8 }} />
+                ) : (
+                  <video src={aiVisualAsset.url} controls playsInline style={{ width: "100%", marginTop: 10, borderRadius: 8 }} />
+                )}
+              </div>
+            )}
+
+            {selectedYoutubeVisual && (
+              <p className="status" role="status">✓ AI {selectedYoutubeVisual.type} selected for YouTube Studio.</p>
             )}
           </section>
         </div>

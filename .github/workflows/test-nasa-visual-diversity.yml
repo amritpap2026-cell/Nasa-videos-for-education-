@@ -1,0 +1,100 @@
+name: Test NASA Visual Diversity
+
+on:
+  push:
+    branches:
+      - nasa-asset-engine
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Create candidate data
+        run: |
+          mkdir -p tmp
+          cat > tmp/diversity-candidates.json <<'EOF'
+          [
+          {
+          "nasaId": "NASA_BLACK_HOLE_A",
+          "title": "Black Hole Visualization A",
+          "score": 0.7
+          },
+          {
+          "nasaId": "NASA_BLACK_HOLE_B",
+          "title": "Black Hole Visualization B",
+          "score": 0.7
+          },
+          {
+          "nasaId": "NASA_BLACK_HOLE_C",
+          "title": "Black Hole Visualization C",
+          "score": 0.6
+          }
+          ]
+
+          EOF
+
+      - name: Test fresh asset selection
+        run: |
+          node video/nasa-visual-diversity.js tmp/diversity-candidates.json tmp/diversity-history.json
+
+      - name: Test reuse tracking
+        run: |
+          node - <<'NODE'
+          const {
+            loadHistory,
+            recordUsage,
+            rankDiverseCandidates
+          } = require("./video/nasa-visual-diversity")
+
+          const historyPath = "tmp/diversity-history.json"
+          const history = loadHistory(historyPath)
+
+          recordUsage(history, [
+            {
+              nasaId: "NASA_BLACK_HOLE_A",
+              start: 10,
+              end: 14,
+              duration: 4
+            }
+          ], "test-episode-001")
+
+          const ranked = rankDiverseCandidates(
+          [
+          {
+          "nasaId": "NASA_BLACK_HOLE_A",
+          "title": "Black Hole Visualization A",
+          "score": 0.7
+          },
+          {
+          "nasaId": "NASA_BLACK_HOLE_B",
+          "title": "Black Hole Visualization B",
+          "score": 0.7
+          },
+          {
+          "nasaId": "NASA_BLACK_HOLE_C",
+          "title": "Black Hole Visualization C",
+          "score": 0.6
+          }
+          ]
+          ,
+            history
+          )
+
+          if (ranked[0].nasaId === "NASA_BLACK_HOLE_A") {
+            throw new Error("Previously used asset was incorrectly ranked first")
+          }
+
+          console.log(JSON.stringify(ranked, null, 2))
+          NODE
+
+      - name: Verify history was created
+        run: |
+          test -f tmp/diversity-history.json
+          cat tmp/diversity-history.json

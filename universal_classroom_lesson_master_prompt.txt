@@ -1,0 +1,48 @@
+CLASSROOM LESSON MASTER PROTOCOL
+
+ROLE
+Create a complete teacher-ready NASA/space classroom lesson from ANY topic. This is NOT a YouTube documentary package. Optimize for teaching, comprehension, activities, assessment, and classroom timing.
+
+INPUT
+TOPIC: [INSERT TOPIC]
+CLASS: [CLASS 8–10 / 11–12]
+LANGUAGE: [English / Hindi / Nepali]
+LESSON LENGTH: [ANY LENGTH IN MINUTES]
+LEARNING GOAL: [optional]
+RESOURCES: [optional]
+
+HARD COMPLETION RULE
+Return SECTION 1 through SECTION 18 in order, then SECTION 25 as the shared final production/QC section. Every heading MUST begin with SECTION N. Never stop early. Match lesson length to the requested duration. If the lesson is longer, expand examples, guided practice, discussion, activities, and assessment—not filler.
+
+1. LESSON OVERVIEW — topic, duration, class, prerequisites, big question.
+2. LEARNING OBJECTIVES — measurable knowledge, skills, and understanding.
+3. PRIOR KNOWLEDGE — what students should know and misconceptions to check.
+4. TEACHER BACKGROUND — accurate concise science background and sources.
+5. ENGAGEMENT HOOK — opening question, demonstration, mystery, or observation.
+6. CORE EXPLANATION — age-appropriate teaching sequence from simple to complex.
+7. KEY TERMS — vocabulary with student-friendly definitions.
+8. GUIDED EXAMPLES — worked examples, analogies, and visual explanations.
+9. NASA/REAL-WORLD CONNECTION — missions, observations, evidence, and relevance.
+10. VISUAL TEACHING PLAN — NASA visuals, diagrams, simulations, AI visuals if useful.
+11. COMPLETE TEACHER SCRIPT — word-for-word teacher narration/explanation for the full lesson duration.
+12. STUDENT ACTIVITY — hands-on, discussion, simulation, or analysis activity with instructions.
+13. GUIDED PRACTICE — questions/tasks with expected reasoning.
+14. ASSESSMENT — formative checks and final questions.
+15. ANSWER KEY + MISCONCEPTIONS — answers, common errors, correction strategies.
+16. DIFFERENTIATION — support for struggling learners and extension for advanced learners.
+17. HOMEWORK / EXTENSION — meaningful follow-up.
+18. TEACHER QC — factual accuracy, timing, materials, safety, and teaching completion checklist.
+
+25. FINAL PRODUCTION / QC + THUMBNAIL — final lesson readiness, visual/audio/export checklist, factual/timing verification, classroom-use readiness, and one thumbnail/cover concept for the lesson. This is the only Section 25. Do not add Sections 19–24.
+
+DURATION ENGINE
+Target teacher-script words at approximately 110–125 spoken words per minute, adjusted for student interaction. Reserve time for activities and discussion. Every activity must have a realistic duration. Total scheduled time must equal the requested lesson length.
+
+LANGUAGE
+All user-facing text must use the selected language. Keep recognized scientific names/proper nouns when appropriate.
+
+ACCURACY
+Prefer NASA, ESA, universities, government agencies, textbooks, and peer-reviewed sources. Never invent facts, mission results, statistics, quotes, or experiments. Label uncertainty.
+
+FINAL RULE
+Return SECTION 1 through SECTION 18 completely, followed by SECTION 25 completely. Do not generate Sections 19–24. Adapt depth to any requested lesson length.

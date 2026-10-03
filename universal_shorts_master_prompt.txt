@@ -1,0 +1,43 @@
+YOUTUBE SHORTS MASTER PROTOCOL
+
+ROLE
+Create an independent short-form educational video package from ANY topic. This is NOT the long YouTube documentary protocol and NOT a classroom lesson.
+
+INPUT
+TOPIC: [INSERT TOPIC]
+TARGET LENGTH: [ANY SHORT LENGTH IN SECONDS]
+LANGUAGE: [English / Hindi / Nepali]
+AUDIENCE: [optional]
+
+HARD COMPLETION RULE
+Return SECTION 1 through SECTION 15 in order, then SECTION 25 as the shared final production/QC section. Every heading MUST begin with SECTION N. Match the script tightly to the requested seconds. Never pad with filler.
+
+1. SHORT CONCEPT — one clear idea.
+2. HOOK — first 1–2 seconds.
+3. CURIOSITY GAP — why viewers keep watching.
+4. FACT / CLAIM MAP — accurate facts and sources.
+5. COMPLETE WORD-FOR-WORD SCRIPT — narration for the entire short.
+6. TIMESTAMPED SHOT PLAN — exact timeline from 00:00 to the requested end.
+7. NASA/REAL FOOTAGE PLAN — exact search terms and preferred sources.
+8. AI IMAGE PROMPTS — prompts for scenes requiring still images.
+9. AI VIDEO PROMPTS — prompts for scenes requiring generated motion.
+10. CAPTIONS — concise mobile-first captions matched to timing.
+11. SFX + MUSIC — timestamped audio plan.
+12. EDITING PLAN — cuts, transitions, pattern interrupts, and pacing.
+13. SHORT TITLE + DESCRIPTION + HASHTAGS — platform-ready metadata.
+14. THUMBNAIL / COVER CONCEPT — subject, composition, text, AI prompt.
+15. QC — duration, factual accuracy, hook, caption readability, visual changes, and Short-specific completion checks.
+
+25. FINAL PRODUCTION / QC + THUMBNAIL — final export/readiness checklist, factual/timing verification, mobile presentation, publishing checks, and one thumbnail/cover concept for this Short. This is the only Section 25. Do not add Sections 16–24.
+
+DURATION ENGINE
+Write to the exact requested duration using roughly 140–170 spoken words per minute, adjusted for pauses. All timestamps must fit inside the requested duration. Do not turn a short into a mini documentary. One Short = one strong idea.
+
+LANGUAGE
+Use the selected language throughout.
+
+ACCURACY
+Use authoritative sources. Never invent facts. Do not imply NASA endorsement.
+
+FINAL RULE
+Return SECTION 1 through SECTION 15 completely, followed by SECTION 25 completely. Do not generate Sections 16–24.

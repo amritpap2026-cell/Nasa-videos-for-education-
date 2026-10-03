@@ -1,0 +1,66 @@
+name: Test NASA Scene Clip Engine
+
+on:
+  push:
+    branches:
+      - nasa-asset-engine
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install FFmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Create test scene
+        run: |
+          mkdir -p tmp
+          cat > tmp/scene.json <<'EOF'
+          {
+            "context": {
+              "title": "Why do black holes have such strong gravity?",
+              "description": "Educational explanation of black holes and their extreme gravity.",
+              "script": "A black hole has gravity so strong that even light cannot escape.",
+              "scene": "Explain the extreme gravity of a black hole.",
+              "visualRequirement": "Black hole, gravity, accretion disk, X-ray emission"
+            },
+            "candidates": [
+              {
+                "nasaId": "GSFC_20200302_M13568_OSIRISReXBH",
+                "title": "OSIRIS-REx Observes a Black Hole",
+                "description": "Visualization of a newly discovered black hole and its surrounding disk.",
+                "score": 0.9
+              }
+            ]
+          }
+          EOF
+
+      - name: Run integrated scene engine
+        run: |
+          node video/nasa-scene-clip-engine.js             tmp/scene.json             tmp/nasa-scene-clips             tmp/nasa-visual-history.json             black-hole-test-episode > tmp/scene-result.json
+          cat tmp/scene-result.json
+
+      - name: Verify extracted clip and reuse history
+        run: |
+          test $(find tmp/nasa-scene-clips -name '*.mp4' | wc -l) -ge 1
+          test -f tmp/nasa-visual-history.json
+          grep -q "GSFC_20200302_M13568_OSIRISReXBH" tmp/nasa-visual-history.json
+          grep -q "black-hole-test-episode" tmp/nasa-visual-history.json
+          for file in tmp/nasa-scene-clips/*.mp4; do
+            ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1 "$file"
+          done
+
+      - name: Upload integrated test artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: nasa-integrated-scene-test
+          path: |
+            tmp/nasa-scene-clips/*.mp4
+            tmp/nasa-visual-history.json

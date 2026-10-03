@@ -1,0 +1,69 @@
+name: Test NASA Multi Clip Extractor
+
+on:
+  push:
+    branches:
+      - nasa-asset-engine
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install FFmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Create test caption matches
+        run: |
+          mkdir -p tmp
+          cat > tmp/matches.json <<'EOF'
+          [
+          {
+          "nasaId": "GSFC_20200302_M13568_OSIRISReXBH",
+          "start": 9.61,
+          "end": 14.147,
+          "text": "detection of a black hole 30,000 light years away. The detection",
+          "score": 0.6667
+          },
+          {
+          "nasaId": "GSFC_20200302_M13568_OSIRISReXBH",
+          "start": 58.525,
+          "end": 62.496,
+          "text": "glowing object turned out to be a newly flaring black hole x-ray",
+          "score": 0.6667
+          },
+          {
+          "nasaId": "GSFC_20200302_M13568_OSIRISReXBH",
+          "start": 66.099,
+          "end": 69.202,
+          "text": "spinning disk surrounding the black hole, an enormous amount",
+          "score": 0.6667
+          }
+          ]
+
+          EOF
+
+      - name: Extract multiple NASA clips
+        run: |
+          node video/nasa-multi-clip-extractor.js tmp/matches.json tmp/nasa-multi-clips
+
+      - name: Verify extracted clips
+        run: |
+          ls -lh tmp/nasa-multi-clips
+          test $(find tmp/nasa-multi-clips -name '*.mp4' | wc -l) -eq 3
+          for file in tmp/nasa-multi-clips/*.mp4; do
+            echo "Checking $file"
+            ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1 "$file"
+          done
+
+      - name: Upload extracted clips
+        uses: actions/upload-artifact@v4
+        with:
+          name: nasa-black-hole-multi-clips
+          path: tmp/nasa-multi-clips/*.mp4

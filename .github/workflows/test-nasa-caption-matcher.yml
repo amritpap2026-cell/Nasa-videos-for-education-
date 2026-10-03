@@ -1,0 +1,21 @@
+name: Test NASA Caption Matcher
+
+on:
+  push:
+    branches:
+      - nasa-asset-engine
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Test NASA caption matcher
+        run: |
+          node video/nasa-caption-matcher.js GSFC_20200302_M13568_OSIRISReXBH "black hole gravity"
