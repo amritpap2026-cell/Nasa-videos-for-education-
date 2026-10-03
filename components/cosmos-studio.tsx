@@ -88,7 +88,7 @@ export default function CosmosStudio() {
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || "Generation failed")
       setResult(data)
-      const generatedStory = extractPart11(data.text || "")
+      const generatedStory = extractPackageScript(data.text || "", packageType)
       setStoryText(generatedStory)
       if (generatedStory) {
         setStatus("Story package generated. Part 11 storytelling script is ready for voiceover.")
@@ -114,6 +114,20 @@ export default function CosmosStudio() {
       setStatus(`Open ${name}, then copy and paste only the storytelling script.`)
       window.open(url, "_blank", "noopener,noreferrer")
     }
+  }
+
+  function extractPackageScript(packageText: string, type: string) {
+    if (type === "lesson") {
+      const text = packageText.replace(/\r\n/g, "\n").replace(/\r/g, "\n")
+      const match = text.match(/(?:SECTION|STEP|भाग)\s*11\b[^\n]*\n([\s\S]*?)(?=\n(?:SECTION|STEP|भाग)\s*12\b|$)/i)
+      return match?.[1]?.trim() || ""
+    }
+    if (type === "shorts") {
+      const text = packageText.replace(/\r\n/g, "\n").replace(/\r/g, "\n")
+      const match = text.match(/(?:SECTION|STEP|भाग)\s*5\b[^\n]*\n([\s\S]*?)(?=\n(?:SECTION|STEP|भाग)\s*6\b|$)/i)
+      return match?.[1]?.trim() || ""
+    }
+    return extractPart11(packageText)
   }
 
   function extractPart11(packageText: string) {
@@ -636,7 +650,7 @@ export default function CosmosStudio() {
                   style={{ marginTop: 18, padding: 18, border: "2px solid #b7ded1", borderRadius: 14, background: "#f4fbf7" }}
                 >
                   <label htmlFor="story-window">
-                    <strong>Part 11 storytelling script</strong>
+                    <strong>{packageType === "lesson" ? "Section 11 complete teacher script" : packageType === "shorts" ? "Section 5 complete Short script" : "Part 11 storytelling script"}</strong>
                   </label>
                   <p className="field-hint">
                     This window stays blank until you press Extract Part 11. That copies only Part 11
