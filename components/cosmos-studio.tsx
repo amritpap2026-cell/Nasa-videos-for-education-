@@ -675,9 +675,8 @@ export default function CosmosStudio() {
                     <strong>{packageType === "lesson" ? "Section 11 complete teacher script" : packageType === "shorts" ? "Section 5 complete Short script" : "Part 11 storytelling script"}</strong>
                   </label>
                   <p className="field-hint">
-                    This window stays blank until you press Extract Part 11. That copies only Part 11
-                    (STORYTELLING SCRIPT) from the first window — the narration above Part 12 — identically.
-                    Voiceover uses only this window.
+                    This window is automatically filled with the complete Part 11 (STORYTELLING SCRIPT)
+                    from the audited package. Voiceover uses only this window.
                   </p>
                   <button
                     className="secondary voice-play"
@@ -685,7 +684,7 @@ export default function CosmosStudio() {
                     onClick={extractPart11ToStoryWindow}
                     style={{ marginTop: 10 }}
                   >
-                    Extract Part 11
+                    Refresh Part 11
                   </button>
                   <textarea
                     id="story-window"
