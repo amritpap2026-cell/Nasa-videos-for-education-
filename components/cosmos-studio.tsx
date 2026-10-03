@@ -42,6 +42,9 @@ export default function CosmosStudio() {
   const [aiVisualType, setAiVisualType] = useState<"image" | "video">("video")
   const [aiVisualPrompt, setAiVisualPrompt] = useState("")
   const [aiVisualScene, setAiVisualScene] = useState("")
+  const [aiVisualGenerating, setAiVisualGenerating] = useState(false)
+  const [aiVisualAsset, setAiVisualAsset] = useState<{ type: "image" | "video"; url: string; scene: string; prompt: string } | null>(null)
+  const [selectedYoutubeVisual, setSelectedYoutubeVisual] = useState<{ type: "image" | "video"; url: string; scene: string; prompt: string } | null>(null)
 
 
   // Visuals (Step 3) — independent modal
@@ -248,11 +251,75 @@ export default function CosmosStudio() {
     setOpen(true)
     setVisualsOpen(false)
   }
+  function extractPart13(packageText: string) {
+    const text = packageText.replace(/\r\n/g, "\n").replace(/\r/g, "\n")
+    const match = text.match(/(?:PART|STEP|भाग)\s*13[^\n]*\n([\s\S]*?)(?=\n(?:PART|STEP|भाग)\s*14\b)/i)
+    return match?.[1]?.trim() || ""
+  }
+
+  function extractPart14(packageText: string) {
+    const text = packageText.replace(/\r\n/g, "\n").replace(/\r/g, "\n")
+    const match = text.match(/(?:PART|STEP|भाग)\s*14[^\n]*\n([\s\S]*?)(?=\n(?:PART|STEP|भाग)\s*15\b|$)/i)
+    return match?.[1]?.trim() || ""
+  }
+
   function openAiVisuals(type: "image" | "video" = "video") {
+    const packageText = result?.text || ""
     setAiVisualType(type)
-    setAiVisualPrompt(storyText.trim() || result?.text || topic.trim())
+    setAiVisualPrompt(type === "image" ? extractPart13(packageText) : extractPart14(packageText))
     setAiVisualScene("")
+    setAiVisualAsset(null)
     setAiVisualOpen(true)
+  }
+
+  async function generateAiVisual() {
+    if (!aiVisualPrompt.trim()) {
+      setStatus("The selected AI generation script is empty. Regenerate the YouTube package first.")
+      return
+    }
+    setAiVisualGenerating(true)
+    setStatus("")
+    try {
+      const response = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: aiVisualType === "image" ? "ai-image" : "ai-video", prompt: aiVisualPrompt.trim(), scene: aiVisualScene.trim() }),
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || "AI visual generation failed")
+      if (data.status === "processing") {
+        let operation = data.operation
+        for (let attempt = 0; attempt < 18; attempt += 1) {
+          await new Promise((resolve) => setTimeout(resolve, 5000))
+          const poll = await fetch("/api/generate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ mode: "ai-video-status", operation }),
+          })
+          const pollData = await poll.json()
+          if (!poll.ok) throw new Error(pollData.error || "Video generation status check failed")
+          if (pollData.status === "complete") {
+            setAiVisualAsset({ type: "video", url: pollData.url, scene: aiVisualScene.trim(), prompt: aiVisualPrompt.trim() })
+            setStatus("AI video generated. Click Use in YouTube Studio.")
+            return
+          }
+          if (pollData.status === "failed") throw new Error(pollData.error || "AI video generation failed")
+        }
+        throw new Error("Video generation is still processing. Please try again shortly.")
+      }
+      setAiVisualAsset({ type: "image", url: data.url, scene: aiVisualScene.trim(), prompt: aiVisualPrompt.trim() })
+      setStatus("AI image generated. Click Use in YouTube Studio.")
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "AI visual generation failed.")
+    } finally {
+      setAiVisualGenerating(false)
+    }
+  }
+
+  function useAiVisualInYoutubeStudio() {
+    if (!aiVisualAsset) return
+    setSelectedYoutubeVisual(aiVisualAsset)
+    setStatus("Selected AI visual for YouTube Studio scene/timeline placement.")
   }
 
   function openVisuals() {
@@ -730,37 +797,45 @@ export default function CosmosStudio() {
                 placeholder="e.g. Scene 5 · 00:42–00:49"
                 maxLength={120}
               />
-            </div>
-
-            <div className="field">
-              <label htmlFor="ai-visual-prompt">Default generation prompt</label>
+                      <label htmlFor="ai-visual-prompt">Default Script {aiVisualType === "image" ? "13" : "14"} generation prompt</label>
               <textarea
                 id="ai-visual-prompt"
                 className="package-editor"
                 style={{ minHeight: 300, width: "100%", resize: "vertical" }}
                 value={aiVisualPrompt}
                 onChange={(e) => setAiVisualPrompt(e.target.value)}
-                placeholder="Your Gemini YouTube package/story prompt will appear here."
               />
               <p className="field-hint">
-                This is intentionally editable. The final generated asset will later use the same scene/timeline
-                manifest as NASA, Pexels, and simulations.
+                Script 13 is the default AI image prompt. Script 14 is the default AI video prompt. Both come from the same YouTube package.
               </p>
             </div>
 
             <div className="voice-actions">
-              <button
-                className="secondary voice-play"
-                type="button"
-                onClick={() => setStatus("AI visual prompt ready. Provider connection will use this prompt and scene manifest.")}
-                disabled={!aiVisualPrompt.trim()}
-              >
-                Prepare {aiVisualType === "image" ? "image" : "video"} generation
+              <button className="secondary voice-play" type="button" onClick={generateAiVisual} disabled={aiVisualGenerating || !aiVisualPrompt.trim()}>
+                {aiVisualGenerating ? "Generating..." : "Generate AI " + aiVisualType}
+              </button>
+              <button className="secondary voice-play" type="button" onClick={useAiVisualInYoutubeStudio} disabled={!aiVisualAsset}>
+                Use in YouTube Studio
               </button>
               <button className="secondary voice-play" type="button" onClick={() => setAiVisualOpen(false)}>
                 Done
               </button>
             </div>
+
+            {aiVisualAsset && (
+              <div style={{ marginTop: 16, border: "1px solid #d7e9e8", borderRadius: 12, padding: 12 }}>
+                <strong>Generated {aiVisualAsset.type}</strong>
+                {aiVisualAsset.type === "image" ? (
+                  <img src={aiVisualAsset.url} alt="Generated AI visual" style={{ width: "100%", marginTop: 10, borderRadius: 8 }} />
+                ) : (
+                  <video src={aiVisualAsset.url} controls playsInline style={{ width: "100%", marginTop: 10, borderRadius: 8 }} />
+                )}
+              </div>
+            )}
+
+            {selectedYoutubeVisual && (
+              <p className="status" role="status">✓ AI {selectedYoutubeVisual.type} selected for YouTube Studio.</p>
+            )}
           </section>
         </div>
       )}
