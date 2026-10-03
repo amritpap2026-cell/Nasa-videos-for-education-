@@ -8,6 +8,7 @@ const preferredModels = [
 ]
 
 const requestTimeoutMs = 25_000
+const voiceoverTimeoutMs = 55_000
 const masterPromptUrl = "https://raw.githubusercontent.com/amritpap2026-cell/Nasa-videos-for-education-/main/universal_youtube_master_prompt.txt"
 
 function pcmBase64ToWavBase64(base64: string, sampleRate = 24000, channels = 1, bitsPerSample = 16) {
@@ -188,19 +189,37 @@ export async function POST(request: Request) {
       const voiceLanguage = ["English", "Hindi", "Nepali"].includes(language) ? language : "English"
       if (!script) return NextResponse.json({ error: "Add a storytelling script before generating voiceover." }, { status: 400 })
       const voicePrompt = `Read only the storytelling narration below, not any title, label, heading, metadata, timestamps, or production note. Perform it as a fluent, warm, cinematic educational voiceover for Class 8–12 students in ${voiceLanguage}. Preserve the exact meaning and language. Use natural pauses, emotional emphasis, and clear pronunciation. Do not add an introduction or outro.\n\nSTORYTELLING NARRATION:\n${script}`
-      const models = await getAvailableModels(key)
-      const voiceModels = ["gemini-2.5-flash-preview-tts", "gemini-2.5-flash-tts", ...models.filter((model: string) => model.includes("tts"))]
-      for (const model of [...new Set(voiceModels)]) {
+      const voiceModels = [
+        "gemini-3.8-flash-tts",
+        "gemini-3.8-flash-lite-tts",
+        "gemini-3.1-flash-tts-preview",
+        "gemini-2.5-flash-preview-tts",
+        "gemini-2.5-pro-preview-tts",
+      ]
+      const voiceErrors: string[] = []
+      for (const model of voiceModels) {
         const controller = new AbortController()
-        const timeout = setTimeout(() => controller.abort(), requestTimeoutMs)
+        const timeout = setTimeout(() => controller.abort(), voiceoverTimeoutMs)
         try {
           const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ contents: [{ parts: [{ text: voicePrompt }] }], generationConfig: { responseModalities: ["AUDIO"], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } } } }),
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: voicePrompt }] }],
+              generationConfig: {
+                responseModalities: ["AUDIO"],
+                speechConfig: {
+                  voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } },
+                },
+              },
+            }),
             signal: controller.signal,
           })
-          if (!response.ok) continue
+          if (!response.ok) {
+            const errorText = await response.text().catch(() => "")
+            voiceErrors.push(model + ": HTTP " + response.status + (errorText ? " — " + errorText.slice(0, 240) : ""))
+            continue
+          }
           const data = await response.json()
           const audio = data?.candidates?.[0]?.content?.parts?.find((part: { inlineData?: { data?: string; mimeType?: string } }) => part.inlineData?.data)?.inlineData
           if (audio?.data) {
@@ -213,13 +232,16 @@ export async function POST(request: Request) {
               model,
             })
           }
-        } catch {
-          // Try the next available Gemini TTS model.
+        } catch (error) {
+          voiceErrors.push(model + ": " + (error instanceof Error ? error.message : "request failed"))
         } finally {
           clearTimeout(timeout)
         }
       }
-      return NextResponse.json({ error: "Gemini voiceover models are unavailable. Check that your Gemini API key has access to a TTS model." }, { status: 503 })
+      return NextResponse.json({
+        error: "Gemini voiceover generation failed. Check the Gemini API key, TTS access, and quota.",
+        details: voiceErrors.slice(0, 3),
+      }, { status: 503 })
     }
 
     if (mode === "brainstorm") {
