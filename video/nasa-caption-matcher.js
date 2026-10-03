@@ -92,7 +92,7 @@ async function getSvsCaptionFallback(nasaId) {
 
 
 async function getImageLibraryDetailCaptionFallback(nasaId) {
-  const pageUrl = \`https://images.nasa.gov/details-\${encodeURIComponent(nasaId)}\`
+  const pageUrl = `https://images.nasa.gov/details-${encodeURIComponent(nasaId)}`
   const pageRes = await fetch(pageUrl)
   if (!pageRes.ok) return null
 
@@ -177,7 +177,7 @@ async function getNasaCaptions(nasaId) {
   const svsFallback = await getSvsCaptionFallback(nasaId)
   if (svsFallback) return svsFallback
 
-  throw new Error(\`NASA caption lookup failed for \${nasaId}: no readable SRT/VTT found in captions API, asset manifest, detail page, or NASA SVS\`)
+  throw new Error(`NASA caption lookup failed for ${nasaId}: no readable SRT/VTT found in captions API, asset manifest, detail page, or NASA SVS`)
 }
 
 function timestampToSeconds(value) {
