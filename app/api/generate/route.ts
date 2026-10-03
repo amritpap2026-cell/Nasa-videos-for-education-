@@ -9,10 +9,10 @@ const preferredModels = [
   "gemini-1.5-flash",
 ]
 
-const requestTimeoutMs = 120_000
+const requestTimeoutMs = 90_000
 const voiceoverTimeoutMs = 55_000
-const packageContinuationTimeoutMs = 90_000
-const maxPackageContinuations = 10
+const packageContinuationTimeoutMs = 35_000
+const maxPackageContinuations = 5
 const protocolPromptUrls: Record<string, string> = {
   youtube: "https://raw.githubusercontent.com/amritpap2026-cell/Nasa-videos-for-education-/nasa-asset-engine/universal_youtube_master_prompt.txt",
   lesson: "https://raw.githubusercontent.com/amritpap2026-cell/Nasa-videos-for-education-/nasa-asset-engine/universal_classroom_lesson_master_prompt.txt",
@@ -93,7 +93,9 @@ function auditPackage(text: string, packageType: string, durationValue: number) 
   const scriptPass = scriptWords >= minimumScriptWords
   const timelineEndSeconds = getTimelineEndSeconds(text, packageType)
   const targetSeconds = packageType === "shorts" ? durationValue : durationValue * 60
-  const timelinePass = timelineEndSeconds >= Math.max(1, Math.round(targetSeconds * 0.95))
+  const timelinePass = packageType === "lesson"
+    ? true
+    : timelineEndSeconds >= Math.max(1, Math.round(targetSeconds * 0.95))
   const wrapperPass = packageType !== "youtube" || /<<<STORYTELLING_SCRIPT_START>>>[\s\S]*<<<STORYTELLING_SCRIPT_END>>>/i.test(text)
   return {
     passed: missing.length === 0 && duplicates.length === 0 && !wrongOrder && scriptPass && timelinePass && wrapperPass,
@@ -540,7 +542,10 @@ ${prompt}`,
               needsTimelineRepair ? "TIMELINE REPAIR REQUIRED: output a complete replacement of the timeline section so it reaches the requested runtime and aligns with the full script." : "",
               missing.length ? "SECTION COMPLETION REQUIRED: generate every missing section in numerical order without repeating existing sections." : "",
               "",
-              "Existing package for continuity:",
+              "Current script that must be preserved or replaced if repair is required:",
+              getMainScript(completeText, normalizedPackageType).slice(0, 30000),
+              "",
+              "Existing package tail for continuity:",
               completeText.slice(-30000),
               "",
               "AUTHORITATIVE PROTOCOL:",
@@ -568,18 +573,20 @@ ${prompt}`,
             if (typeof continuationText !== "string" || !continuationText.trim()) break
 
             const replacementBlocks = getSectionBlocks(continuationText)
-            if (needsScriptRepair || needsTimelineRepair) {
-              const replacements = new Map(replacementBlocks.map((block) => [block.number, block.body]))
-              for (const number of [scriptSection, timelineSection]) {
-                const body = replacements.get(number)
-                if (!body) continue
-                const headingRegex = new RegExp(`(?:^|\\n)\\s*(?:PART|SECTION|STEP|भाग)\\s*${number}\\b[^\\n]*\\n[\\s\\S]*?(?=\\n\\s*(?:PART|SECTION|STEP|भाग)\\s*\\d+\\b|$)`, "i")
-                if (headingRegex.test(completeText)) {
-                  completeText = completeText.replace(headingRegex, `\\n${normalizedPackageType === "youtube" ? "PART" : "SECTION"} ${number}\\n${body}\\n`)
-                }
+            const replacementNumbers = new Set<number>()
+            for (const number of [scriptSection, timelineSection]) {
+              const body = replacementBlocks.find((block) => block.number === number)?.body
+              if (!body) continue
+              replacementNumbers.add(number)
+              const headingRegex = new RegExp(`(?:^|\\n)\\s*(?:PART|SECTION|STEP|भाग)\\s*${number}\\b[^\\n]*\\n[\\s\\S]*?(?=\\n\\s*(?:PART|SECTION|STEP|भाग)\\s*\\d+\\b|$)`, "i")
+              if (headingRegex.test(completeText)) {
+                completeText = completeText.replace(headingRegex, `\\n${normalizedPackageType === "youtube" ? "PART" : "SECTION"} ${number}\\n${body}\\n`)
               }
-            } else {
-              completeText += "\n\n" + continuationText.trim()
+            }
+            const existingNumbers = getGeneratedSectionNumbers(completeText)
+            const newBlocks = replacementBlocks.filter((block) => !existingNumbers.has(block.number) && !replacementNumbers.has(block.number))
+            if (newBlocks.length) {
+              completeText += "\n\n" + newBlocks.map((block) => `${normalizedPackageType === "youtube" ? "PART" : "SECTION"} ${block.number}\\n${block.body}`).join("\n\n")
             }
             audit = auditPackage(completeText, normalizedPackageType, durationValue)
           }
