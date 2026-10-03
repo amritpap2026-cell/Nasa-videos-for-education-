@@ -38,6 +38,44 @@ function collectUrls(value, results = []) {
   return results
 }
 
+
+async function getSvsCaptionFallback(nasaId) {
+  // Many NASA SVS videos are surfaced through images.nasa.gov with a
+  // composite ID such as GSFC_20200302_M13568_OSIRISReXBH. The same
+  // video has its downloadable SRT/VTT on the NASA SVS page.
+  const match = String(nasaId).match(/(?:^|_)M(\\d+)(?:_|$)/i)
+  if (!match) return null
+
+  const svsId = match[1]
+  const pageUrl = `https://svs.gsfc.nasa.gov/${svsId}/`
+  const pageRes = await fetch(pageUrl)
+  if (!pageRes.ok) return null
+
+  const html = await pageRes.text()
+  const links = [...html.matchAll(/https?:\\/\\/[^"'\\s<>]+\\.(?:srt|vtt)(?:\\?[^"'\\s<>]*)?/gi)]
+    .map((match) => match[0].replace(/&amp;/g, "&"))
+  const captionUrls = [...new Set(links)]
+
+  for (const captionUrl of captionUrls) {
+    const captionRes = await fetch(captionUrl)
+    if (!captionRes.ok) continue
+
+    const text = await captionRes.text()
+    if (/-->/.test(text)) {
+      return {
+        nasaId,
+        captionUrl,
+        text,
+        source: "svs.gsfc.nasa.gov",
+        svsId,
+        pageUrl,
+      }
+    }
+  }
+
+  return null
+}
+
 async function getNasaCaptions(nasaId) {
   if (!nasaId) throw new Error("nasaId is required")
 
@@ -63,27 +101,28 @@ async function getNasaCaptions(nasaId) {
     }
   }
 
-  const manifest = await fetchJson(
-    `https://images-api.nasa.gov/asset/${encodeURIComponent(nasaId)}`,
-    "NASA asset manifest lookup"
-  )
+  try {
+    const manifest = await fetchJson(
+      `https://images-api.nasa.gov/asset/${encodeURIComponent(nasaId)}`,
+      "NASA asset manifest lookup"
+    )
 
-  const captionUrls = [...new Set(collectUrls(manifest))]
-  if (!captionUrls.length) {
-    throw new Error(`No downloadable captions found in NASA asset manifest: ${nasaId}`)
-  }
+    const captionUrls = [...new Set(collectUrls(manifest))]
+    for (const captionUrl of captionUrls) {
+      const captionRes = await fetch(captionUrl)
+      if (!captionRes.ok) continue
 
-  for (const captionUrl of captionUrls) {
-    const captionRes = await fetch(captionUrl)
-    if (!captionRes.ok) continue
-
-    const text = await captionRes.text()
-    if (/-->/.test(text)) {
-      return { nasaId, captionUrl, text }
+      const text = await captionRes.text()
+      if (/-->/.test(text)) {
+        return { nasaId, captionUrl, text, source: "images.nasa.gov" }
+      }
     }
-  }
+  } catch {}
 
-  throw new Error(`NASA caption files were found but none could be read: ${nasaId}`)
+  const svsFallback = await getSvsCaptionFallback(nasaId)
+  if (svsFallback) return svsFallback
+
+  throw new Error(`NASA caption lookup failed for ${nasaId}: no readable SRT/VTT found in Image Library or NASA SVS`)
 }
 
 function timestampToSeconds(value) {
