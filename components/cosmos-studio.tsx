@@ -263,11 +263,34 @@ export default function CosmosStudio() {
     return match?.[1]?.trim() || ""
   }
 
-  function openAiVisuals(type: "image" | "video" = "video") {
+  function setAiVisualGenerationType(type: "image" | "video") {
     const packageText = result?.text || ""
     setAiVisualType(type)
     setAiVisualPrompt(type === "image" ? extractPart13(packageText) : extractPart14(packageText))
+    setAiVisualAsset(null)
+  }
+
+  function openAiVisuals(type: "image" | "video" = "video") {
+    setAiVisualGenerationType(type)
     setAiVisualScene("")
+    setAiVisualOpen(true)
+  }
+
+  function extractPart25(packageText: string) {
+    const text = packageText.replace(/\r\n/g, "\n").replace(/\r/g, "\n")
+    const match = text.match(/(?:PART|STEP|भाग)\s*25[^\n]*\n([\s\S]*?)(?=\n(?:PART|STEP|भाग)\s*26\b|$)/i)
+    return match?.[1]?.trim() || ""
+  }
+
+  function generateThumbnail() {
+    const concepts = extractPart25(result?.text || "")
+    if (!concepts) {
+      setStatus("Could not find Part 25 (THUMBNAIL CONCEPTS). Regenerate the YouTube package first.")
+      return
+    }
+    setAiVisualType("image")
+    setAiVisualPrompt(concepts)
+    setAiVisualScene("YouTube thumbnail")
     setAiVisualAsset(null)
     setAiVisualOpen(true)
   }
@@ -653,6 +676,9 @@ export default function CosmosStudio() {
                   >
                     <Sparkles size={16} /> AI image / video
                   </button>
+                  <button className="secondary voice-play" type="button" onClick={generateThumbnail}>
+                    <Sparkles size={16} /> Generate thumbnail
+                  </button>
                 </div>
 
                 <div className="voiceover">
@@ -779,10 +805,10 @@ export default function CosmosStudio() {
             <div className="field">
               <p className="field-label">Generation type</p>
               <div className="voice-buttons">
-                <button type="button" className={aiVisualType === "image" ? "voice active" : "voice"} onClick={() => setAiVisualType("image")}>
+                <button type="button" className={aiVisualType === "image" ? "voice active" : "voice"} onClick={() => setAiVisualGenerationType("image")}>
                   AI Image
                 </button>
-                <button type="button" className={aiVisualType === "video" ? "voice active" : "voice"} onClick={() => setAiVisualType("video")}>
+                <button type="button" className={aiVisualType === "video" ? "voice active" : "voice"} onClick={() => setAiVisualGenerationType("video")}>
                   AI Video
                 </button>
               </div>
