@@ -165,6 +165,7 @@ if (require.main === module) {
 
   const candidates = JSON.parse(fs.readFileSync(candidatesFile, "utf8"))
   const result = chooseDiverseCandidates(candidates, { historyPath })
+  saveHistory(result.historyPath, result.history)
 
   console.log(JSON.stringify({
     historyPath: result.historyPath,
