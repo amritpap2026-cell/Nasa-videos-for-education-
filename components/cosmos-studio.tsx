@@ -576,6 +576,16 @@ export default function CosmosStudio() {
                   >
                     <Film size={16} /> Visuals
                   </button>
+                  <button
+                    className="secondary voice-play"
+                    type="button"
+                    onClick={() => {
+                      setOpen(false)
+                      openAiVisuals("video")
+                    }}
+                  >
+                    <Sparkles size={16} /> AI image / video
+                  </button>
                 </div>
 
                 <div className="voiceover">
