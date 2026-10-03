@@ -51,6 +51,17 @@ function getWordCount(text: string) {
   return text.trim() ? text.trim().split(/\s+/).length : 0
 }
 
+function getCandidateText(candidate: any) {
+  return candidate?.content?.parts
+    ?.map((part: { text?: string }) => part?.text || "")
+    .join("")
+    .trim() || ""
+}
+
+function getFinishReason(candidate: any) {
+  return typeof candidate?.finishReason === "string" ? candidate.finishReason : ""
+}
+
 function getMainScript(text: string, packageType: string) {
   const normalized = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n")
   if (packageType === "youtube") {
@@ -471,6 +482,12 @@ ${prompt}`,
       if (promptResponse.ok) masterPrompt = await promptResponse.text()
     } catch {}
 
+    if (!masterPrompt.trim()) {
+      return NextResponse.json({
+        error: "The selected master prompt could not be loaded. No incomplete package was generated.",
+      }, { status: 503 })
+    }
+
     const languageInstruction = normalizedLanguage === "Hindi"
       ? "Write every user-facing field entirely in Hindi using Devanagari script. Keep recognized scientific proper nouns such as NASA and mission names where appropriate."
       : normalizedLanguage === "Nepali"
@@ -546,10 +563,11 @@ ${prompt}`,
 
         const data = await response.json()
         const candidate = data?.candidates?.[0]
-        scriptDraft = candidate?.content?.parts?.map((part: { text?: string }) => part?.text || "").join("")?.trim() || ""
+        scriptDraft = getCandidateText(candidate)
         if (!scriptDraft) continue
 
-        for (let continuation = 0; continuation < maxScriptContinuations && getWordCount(scriptDraft) < scriptTargetWords; continuation += 1) {
+        let scriptFinishReason = getFinishReason(candidate)
+        for (let continuation = 0; continuation < maxScriptContinuations && (getWordCount(scriptDraft) < scriptTargetWords || scriptFinishReason === "MAX_TOKENS"); continuation += 1) {
           const continuationPrompt = [
             "CONTINUE THE SAME WORD-FOR-WORD SCRIPT. DO NOT RESTART IT.",
             "The previous generation stopped before the requested script length.",
@@ -588,12 +606,14 @@ ${prompt}`,
           )
           if (!continuationResponse.ok) break
           const continuationData = await continuationResponse.json()
-          const continuationText = continuationData?.candidates?.[0]?.content?.parts?.map((part: { text?: string }) => part?.text || "").join("")?.trim()
+          const continuationCandidate = continuationData?.candidates?.[0]
+          const continuationText = getCandidateText(continuationCandidate)
           if (!continuationText) break
           scriptDraft = (scriptDraft + "\n\n" + continuationText).trim()
+          scriptFinishReason = getFinishReason(continuationCandidate)
         }
 
-        if (getWordCount(scriptDraft) >= scriptTargetWords) {
+        if (getWordCount(scriptDraft) >= scriptTargetWords && scriptFinishReason !== "SAFETY" && scriptFinishReason !== "RECITATION") {
           authoritativeScript = scriptDraft
           scriptModel = model
           break
@@ -662,9 +682,11 @@ ${prompt}`,
         )
         if (!response.ok) continue
         const data = await response.json()
-        let generatedText = data?.candidates?.[0]?.content?.parts?.[0]?.text
-        if (typeof generatedText === "string" && generatedText.trim()) {
-          let completeText = generatedText.trim()
+        const candidate = data?.candidates?.[0]
+        const generatedText = getCandidateText(candidate)
+        const finishReason = getFinishReason(candidate)
+        if (generatedText && finishReason !== "SAFETY" && finishReason !== "RECITATION") {
+          let completeText = generatedText
           let audit = auditPackage(completeText, normalizedPackageType, durationValue)
           // The script was generated independently; replace the package's script section
           // with that exact authoritative script before every audit.
@@ -726,8 +748,9 @@ ${prompt}`,
             )
             if (!continuationResponse.ok) break
             const continuationData = await continuationResponse.json()
-            const continuationText = continuationData?.candidates?.[0]?.content?.parts?.[0]?.text
-            if (typeof continuationText !== "string" || !continuationText.trim()) break
+            const continuationCandidate = continuationData?.candidates?.[0]
+            const continuationText = getCandidateText(continuationCandidate)
+            if (!continuationText || ["SAFETY", "RECITATION"].includes(getFinishReason(continuationCandidate))) break
 
             const replacementBlocks = getSectionBlocks(continuationText)
             const replacementNumbers = new Set<number>()
