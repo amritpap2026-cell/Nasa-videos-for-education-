@@ -23,7 +23,7 @@ jobs:
         run: |
           mkdir -p tmp
           cat > tmp/scene.json <<'EOF'
-          {
+{
   "context": {
     "title": "Why do black holes have such strong gravity?",
     "description": "Educational explanation of black holes and their extreme gravity.",
@@ -35,28 +35,32 @@ jobs:
     {
       "nasaId": "GSFC_20200302_M13568_OSIRISReXBH",
       "title": "OSIRIS-REx Observes a Black Hole",
-      "description": "Visualization of a newly discovered black hole and its surrounding disk."
+      "description": "Visualization of a newly discovered black hole and its surrounding disk.",
+      "score": 0.9
     }
   ]
 }
+EOF
 
-          EOF
-
-      - name: Match captions and extract scene clips
+      - name: Run integrated scene engine
         run: |
-          node video/nasa-scene-clip-engine.js tmp/scene.json tmp/nasa-scene-clips > tmp/scene-result.json
+          node video/nasa-scene-clip-engine.js             tmp/scene.json             tmp/nasa-scene-clips             tmp/nasa-visual-history.json             black-hole-test-episode > tmp/scene-result.json
           cat tmp/scene-result.json
 
-      - name: Verify scene clips
+      - name: Verify extracted clip and reuse history
         run: |
           test $(find tmp/nasa-scene-clips -name '*.mp4' | wc -l) -ge 1
+          test -f tmp/nasa-visual-history.json
+          grep -q "GSFC_20200302_M13568_OSIRISReXBH" tmp/nasa-visual-history.json
+          grep -q "black-hole-test-episode" tmp/nasa-visual-history.json
           for file in tmp/nasa-scene-clips/*.mp4; do
-            echo "Checking $file"
             ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1 "$file"
           done
 
-      - name: Upload scene clips
+      - name: Upload integrated test artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: nasa-scene-clips
-          path: tmp/nasa-scene-clips/*.mp4
+          name: nasa-integrated-scene-test
+          path: |
+            tmp/nasa-scene-clips/*.mp4
+            tmp/nasa-visual-history.json
