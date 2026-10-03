@@ -193,7 +193,7 @@ export async function POST(request: Request) {
           contents: prompt,
           config: {
             responseModalities: ["IMAGE"],
-            responseFormat: { image: { aspectRatio: "16:9", imageSize: "2K" } },
+            imageConfig: { aspectRatio: "16:9", imageSize: "2K" },
           },
         })
         const part = response.candidates?.[0]?.content?.parts?.find((item: { inlineData?: { data?: string; mimeType?: string } }) => item.inlineData?.data)
