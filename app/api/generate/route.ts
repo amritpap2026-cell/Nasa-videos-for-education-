@@ -358,7 +358,11 @@ ${prompt}`,
     }
 
     if (topic.trim().length < 3) return NextResponse.json({ error: "Please enter a topic with at least 3 characters." }, { status: 400 })
-    const selectedLength = ["0-5", "0-10", "0-15", "0-30", "0-60"].includes(length) ? length : "0-10"
+    const requestedLength = typeof length === "string" ? Number(length.split("-").pop()) : NaN
+    const maxAllowedLength = packageType === "shorts" ? 180 : 180
+    const minimumLength = packageType === "shorts" ? 10 : 1
+    const safeLengthValue = Number.isFinite(requestedLength) ? Math.min(maxAllowedLength, Math.max(minimumLength, Math.round(requestedLength))) : packageType === "shorts" ? 60 : 10
+    const selectedLength = `0-${safeLengthValue}`
     if (!key) return NextResponse.json({ text: await createFallbackPackage(topic, normalizedLanguage, gradeLevel, selectedLength, normalizedPackageType), model: "local master-prompt fallback" })
     let masterPrompt = ""
     const normalizedPackageType = ["youtube", "lesson", "shorts"].includes(packageType) ? packageType : "youtube"
@@ -373,8 +377,11 @@ ${prompt}`,
         ? "Write every user-facing field entirely in Nepali using Devanagari script. Keep recognized scientific proper nouns such as NASA and mission names where appropriate."
         : "Write every user-facing field entirely in English."
 
-    const maxMinutes = Number(selectedLength.split("-")[1]) || 10
-    const targetWords = Math.max(450, Math.round(maxMinutes * 125))
+    const durationValue = Number(selectedLength.split("-")[1]) || 10
+    const durationMinutes = normalizedPackageType === "shorts" ? durationValue / 60 : durationValue
+    const targetWords = normalizedPackageType === "shorts"
+      ? Math.max(35, Math.round(durationMinutes * 155))
+      : Math.max(450, Math.round(durationMinutes * 125))
     const protocolLabel = normalizedPackageType === "youtube" ? "YouTube 25-part production package" : normalizedPackageType === "lesson" ? "Classroom lesson protocol" : "YouTube Shorts protocol"
     const prompt = [
       "You are generating a " + protocolLabel + ".",
