@@ -180,6 +180,51 @@ export async function POST(request: Request) {
     const normalizedLanguage = ["English", "Hindi", "Nepali"].includes(language) ? language : "English"
     const key = (process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY || "").trim()
 
+    if (mode === "ai-image" || mode === "ai-video" || mode === "ai-video-status") {
+      if (!key) return NextResponse.json({ error: "GEMINI_API_KEY is not configured for AI visual generation." }, { status: 503 })
+      const { GoogleGenAI } = await import("@google/genai")
+      const ai = new GoogleGenAI({ apiKey: key })
+
+      if (mode === "ai-image") {
+        const prompt = typeof requestBody?.prompt === "string" ? requestBody.prompt.trim() : ""
+        if (!prompt) return NextResponse.json({ error: "An image generation prompt is required." }, { status: 400 })
+        const response = await ai.models.generateContent({
+          model: "gemini-3.1-flash-image",
+          contents: prompt,
+          config: {
+            responseModalities: ["IMAGE"],
+            responseFormat: { image: { aspectRatio: "16:9", imageSize: "2K" } },
+          },
+        })
+        const part = response.candidates?.[0]?.content?.parts?.find((item: { inlineData?: { data?: string; mimeType?: string } }) => item.inlineData?.data)
+        const data = part?.inlineData?.data
+        const mimeType = part?.inlineData?.mimeType || "image/png"
+        if (!data) return NextResponse.json({ error: "Gemini returned no generated image." }, { status: 502 })
+        return NextResponse.json({ status: "complete", type: "image", url: "data:" + mimeType + ";base64," + data })
+      }
+
+      if (mode === "ai-video-status") {
+        const operationName = typeof requestBody?.operation === "string" ? requestBody.operation.trim() : ""
+        if (!operationName) return NextResponse.json({ error: "A video operation is required." }, { status: 400 })
+        const operation = await ai.operations.getVideosOperation({ operation: operationName })
+        if (operation.error) return NextResponse.json({ status: "failed", error: operation.error.message || "Video generation failed." }, { status: 502 })
+        if (!operation.done) return NextResponse.json({ status: "processing", operation: operation.name || operationName })
+        const videoUri = operation.response?.generatedVideos?.[0]?.video?.uri
+        if (!videoUri) return NextResponse.json({ status: "failed", error: "Gemini completed the operation without a video URI." }, { status: 502 })
+        return NextResponse.json({ status: "complete", type: "video", url: videoUri, operation: operation.name || operationName })
+      }
+
+      const prompt = typeof requestBody?.prompt === "string" ? requestBody.prompt.trim() : ""
+      if (!prompt) return NextResponse.json({ error: "A video generation prompt is required." }, { status: 400 })
+      const operation = await ai.models.generateVideos({
+        model: "veo-3.1-generate-preview",
+        prompt,
+        config: { aspectRatio: "16:9", durationSeconds: 8 },
+      })
+      if (!operation.name) return NextResponse.json({ error: "Gemini did not return a video operation." }, { status: 502 })
+      return NextResponse.json({ status: "processing", type: "video", operation: operation.name })
+    }
+
     if (mode === "voiceover") {
       if (!key) return NextResponse.json({ error: "GEMINI_API_KEY is not configured for voiceover." }, { status: 503 })
       const script = typeof requestBody?.script === "string"
