@@ -7,8 +7,10 @@ const preferredModels = [
   "gemini-1.5-flash",
 ]
 
-const requestTimeoutMs = 25_000
+const requestTimeoutMs = 120_000
 const voiceoverTimeoutMs = 55_000
+const packageContinuationTimeoutMs = 90_000
+const maxPackageContinuations = 10
 const protocolPromptUrls: Record<string, string> = {
   youtube: "https://raw.githubusercontent.com/amritpap2026-cell/Nasa-videos-for-education-/nasa-asset-engine/universal_youtube_master_prompt.txt",
   lesson: "https://raw.githubusercontent.com/amritpap2026-cell/Nasa-videos-for-education-/nasa-asset-engine/universal_classroom_lesson_master_prompt.txt",
