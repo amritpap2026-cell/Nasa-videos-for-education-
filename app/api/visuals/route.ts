@@ -1,6 +1,99 @@
 import { NextResponse } from "next/server"
 import { matchNasaCaptions } from "../../../video/nasa-caption-matcher"
 
+
+async function searchSvsVideos(searchTerms: string[], topic: string) {
+  const uniqueTerms = Array.from(new Set(searchTerms.map((term) => term.trim()).filter((term) => term.length >= 2))).slice(0, 3)
+  const searchResponses = await Promise.all(
+    uniqueTerms.map(async (term) => {
+      try {
+        const response = await fetch(
+          `https://svs.gsfc.nasa.gov/api/search/?search=${encodeURIComponent(term)}&limit=8`,
+          { headers: { Accept: "application/json" }, next: { revalidate: 3600 } },
+        )
+        if (!response.ok) return []
+        const data = await response.json()
+        return Array.isArray(data?.results) ? data.results : []
+      } catch {
+        return []
+      }
+    }),
+  )
+
+  const pages = Array.from(
+    new Map(
+      searchResponses.flat().map((item: { id?: number; url?: string; title?: string; description?: string }) => [
+        item.id || item.url,
+        item,
+      ]),
+    ).values(),
+  ).slice(0, 8)
+
+  const detailed = await Promise.all(
+    pages.map(async (item: { id?: number; url?: string; title?: string; description?: string }) => {
+      if (!item.id) return null
+      try {
+        const response = await fetch(`https://svs.gsfc.nasa.gov/api/${item.id}/`, {
+          headers: { Accept: "application/json" },
+          next: { revalidate: 3600 },
+        })
+        if (!response.ok) return null
+        return await response.json()
+      } catch {
+        return null
+      }
+    }),
+  )
+
+  const collectMedia = (value: unknown, results: Array<{ url?: string; filename?: string; media_type?: string }> = []) => {
+    if (!value) return results
+    if (Array.isArray(value)) {
+      for (const item of value) collectMedia(item, results)
+      return results
+    }
+    if (typeof value === "object") {
+      const record = value as Record<string, unknown>
+      if (typeof record.url === "string" && typeof record.media_type === "string") {
+        results.push({
+          url: record.url,
+          filename: typeof record.filename === "string" ? record.filename : undefined,
+          media_type: record.media_type,
+        })
+      }
+      for (const child of Object.values(record)) collectMedia(child, results)
+    }
+    return results
+  }
+
+  return detailed
+    .filter(Boolean)
+    .map((page: any) => {
+      const media = collectMedia(page)
+      const video = page.main_video?.url
+        ? page.main_video
+        : media.find((item) => item.media_type === "Movie" && /\.mp4(?:$|[?#])/i.test(item.url || ""))
+      const image = page.main_image?.url
+        ? page.main_image
+        : media.find((item) => item.media_type === "Image" && /\.(?:jpg|jpeg|png)(?:$|[?#])/i.test(item.url || ""))
+      const caption = media.find((item) => item.media_type === "Captions" && /\.(?:srt|vtt)(?:$|[?#])/i.test(item.url || ""))
+      if (!video?.url || !image?.url) return null
+      return {
+        source: "NASA",
+        title: page.title || topic,
+        description: page.description || "NASA Scientific Visualization Studio",
+        nasaId: `SVS_${page.id}`,
+        mediaType: "video",
+        url: image.url,
+        videoUrl: video.url,
+        captionUrl: caption?.url || null,
+        pageUrl: page.url || `https://svs.gsfc.nasa.gov/${page.id}/`,
+        captionMatchCount: 0,
+        captionMatches: [],
+      }
+    })
+    .filter(Boolean)
+}
+
 export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}))
   const topic = typeof body.topic === "string" ? body.topic.trim() : ""
@@ -104,9 +197,32 @@ export async function POST(request: Request) {
   })
 
   if (dedupedNasaItems.length) {
-    const videoItems = nasaItems
+    let videoItems = nasaItems
       .filter((item) => item.mediaType === "video" && item.nasaId)
       .slice(0, 6)
+
+    // NASA's main Image & Video API can occasionally return no video records
+    // from a serverless runtime even when the same topic has NASA videos.
+    // Use the public NASA Scientific Visualization Studio API as a video-first
+    // fallback before ever falling back to Pexels.
+    if (!videoItems.length) {
+      const svsItems = await searchSvsVideos(
+        [subjectQuery, subjectWords.slice(0, 3).join(" "), subjectWords.slice(0, 2).join(" ")],
+        topic,
+      )
+      if (svsItems.length) {
+        const merged = [...svsItems, ...nasaItems]
+        nasaItems = Array.from(
+          new Map(
+            merged.map((item: { nasaId?: string; url?: string }, index: number) => [
+              item.nasaId || item.url || index,
+              item,
+            ]),
+          ).values(),
+        )
+        videoItems = svsItems.slice(0, 6)
+      }
+    }
 
     if (script && videoItems.length) {
       const enriched = await Promise.all(
@@ -150,7 +266,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       source: "NASA",
-      items: dedupedNasaItems.slice(0, 36),
+      items: Array.from(new Map(nasaItems.map((item: { nasaId?: string; url?: string }, index: number) => [item.nasaId || item.url || index, item])).values()).slice(0, 36),
       notice: `NASA · ${dedupedNasaItems.length} result${dedupedNasaItems.length === 1 ? "" : "s"} for “${topic}”`,
       sceneMatching: Boolean(script),
       extraction: "timestamped NASA clips are prepared by the separate FFmpeg worker",
