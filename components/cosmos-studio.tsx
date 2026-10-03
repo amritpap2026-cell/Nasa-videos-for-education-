@@ -204,7 +204,11 @@ export default function CosmosStudio() {
       const response = await fetch("/api/visuals", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ topic: q }),
+        body: JSON.stringify({
+        topic: q,
+        script: storyText,
+        visualRequirement: q,
+      }),
       })
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || "Visual search failed")
