@@ -200,11 +200,11 @@ export async function POST(request: Request) {
   try {
     const requestBody = await request.json()
     const { topic, language = "English", gradeLevel = "Class 8–12", length = "0-10", mode = "package", packageType = "youtube" } = requestBody
-    if (mode !== "voiceover" && (typeof topic !== "string" || topic.length > 300)) return NextResponse.json({ error: "Please enter a topic no longer than 300 characters." }, { status: 400 })
+    if (mode !== "voiceover" && mode !== "thumbnail" && (typeof topic !== "string" || topic.length > 300)) return NextResponse.json({ error: "Please enter a topic no longer than 300 characters." }, { status: 400 })
     const normalizedLanguage = ["English", "Hindi", "Nepali"].includes(language) ? language : "English"
     const key = (process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY || "").trim()
 
-    if (mode === "ai-image" || mode === "ai-video" || mode === "ai-video-status") {
+    if (mode === "thumbnail" || mode === "ai-image" || mode === "ai-video" || mode === "ai-video-status") {
       if (!key) return NextResponse.json({ error: "GEMINI_API_KEY is not configured for AI visual generation." }, { status: 503 })
       const { GoogleGenAI } = await import("@google/genai")
       const ai = new GoogleGenAI({ apiKey: key })
@@ -214,9 +214,9 @@ export async function POST(request: Request) {
         if (!prompt) return NextResponse.json({ error: "Thumbnail concepts are required." }, { status: 400 })
         const response = await ai.models.generateContent({
           model: "gemini-3.1-flash-image",
-          contents: `Create ONE polished YouTube thumbnail using ALL of these Part 25 thumbnail concepts as creative guidance. Combine compatible ideas intelligently rather than making a collage. Preserve the strongest subject, composition, visual hook, text guidance, and negative constraints from the concepts. Make it 16:9, mobile-readable, visually striking, educational, and scientifically accurate.
+          contents: `Create ONE polished thumbnail/cover using ALL of these Section 25 thumbnail concepts as creative guidance. Combine compatible ideas intelligently rather than making a collage. Preserve the strongest subject, composition, visual hook, text guidance, and negative constraints from the concepts. Make it 16:9, mobile-readable, visually striking, educational, and scientifically accurate.
 
-PART 25 — THUMBNAIL CONCEPTS:
+SECTION 25 — THUMBNAIL / COVER CONCEPTS:
 ${prompt}`,
           config: {
             responseModalities: ["IMAGE"],
