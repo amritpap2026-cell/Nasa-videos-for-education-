@@ -212,7 +212,7 @@ export async function POST(request: Request) {
       )
       if (svsItems.length) {
         const merged = [...svsItems, ...nasaItems]
-        nasaItems = Array.from(
+        const mergedNasaItems = Array.from(
           new Map(
             merged.map((item: { nasaId?: string; url?: string }, index: number) => [
               item.nasaId || item.url || index,
@@ -221,6 +221,7 @@ export async function POST(request: Request) {
           ).values(),
         )
         videoItems = svsItems.slice(0, 6)
+        nasaItems = mergedNasaItems
       }
     }
 
