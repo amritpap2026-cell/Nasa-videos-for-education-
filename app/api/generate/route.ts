@@ -82,6 +82,16 @@ function getTimelineEndSeconds(text: string, packageType: string) {
   return maxSeconds
 }
 
+function injectAuthoritativeScript(text: string, packageType: string, script: string) {
+  const normalized = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n")
+  const sectionNumber = packageType === "youtube" ? 11 : packageType === "lesson" ? 11 : 5
+  const label = packageType === "youtube" ? "PART" : "SECTION"
+  const headingRegex = new RegExp(`(?:^|\\n)\\s*${label}\\s*${sectionNumber}\\b[^\\n]*\\n[\\s\\S]*?(?=\\n\\s*(?:PART|SECTION|STEP|भाग)\\s*\\d+\\b|$)`, "i")
+  const replacement = `\\n${label} ${sectionNumber}\\n${packageType === "youtube" ? "<<<STORYTELLING_SCRIPT_START>>>\\n" : ""}${script}${packageType === "youtube" ? "\\n<<<STORYTELLING_SCRIPT_END>>>" : ""}\\n`
+  if (headingRegex.test(normalized)) return normalized.replace(headingRegex, replacement)
+  return normalized + `\\n\\n${label} ${sectionNumber}\\n${script}`
+}
+
 function auditPackage(text: string, packageType: string, durationValue: number) {
   const required = requiredPackageSections(packageType)
   const blocks = getSectionBlocks(text)
@@ -469,6 +479,77 @@ ${prompt}`,
       ? Math.max(35, Math.round(durationMinutes * 155))
       : Math.max(450, Math.round(durationMinutes * 125))
     const protocolLabel = normalizedPackageType === "youtube" ? "YouTube 25-part production package" : normalizedPackageType === "lesson" ? "Classroom lesson protocol" : "YouTube Shorts protocol"
+
+    // Generate the narration independently first. This prevents a long production package
+    // from consuming the output budget before the actual word-for-word script is complete.
+    const scriptSectionNumber = normalizedPackageType === "youtube" ? 11 : normalizedPackageType === "lesson" ? 11 : 5
+    const scriptMinimumWords = getScriptMinimumWords(normalizedPackageType, durationValue)
+    const scriptTargetWords = Math.max(scriptMinimumWords, targetWords)
+    let authoritativeScript = ""
+    let scriptModel = ""
+
+    const scriptPrompt = [
+      "Generate ONLY the complete word-for-word narration/teacher script for this production.",
+      "Do not generate a production package. Do not generate outlines. Do not summarize.",
+      "The result will be inserted verbatim into the final production package.",
+      "",
+      "TOPIC: " + topic.trim(),
+      "OUTPUT LANGUAGE: " + normalizedLanguage,
+      "STUDENT LEVEL: " + gradeLevel,
+      "REQUESTED LENGTH: " + selectedLength + " minutes",
+      "TARGET SCRIPT LENGTH: at least " + scriptTargetWords + " words.",
+      "AUTHORITATIVE PROTOCOL:",
+      masterPrompt || protocolLabel,
+      "",
+      languageInstruction,
+      "",
+      "SCRIPT REQUIREMENTS:",
+      "- Write a complete natural word-for-word spoken script for the entire requested runtime.",
+      "- Do not write an outline, bullet summary, production notes, or placeholder text.",
+      "- Do not say that the script continues later.",
+      "- Do not stop after the introduction.",
+      "- Include the full beginning, middle, explanation/story, and ending.",
+      "- Meet or exceed the target word count.",
+      "- Output only the script text, with no heading or commentary.",
+    ].join("\n")
+
+    const scriptModels = await getAvailableModels(key)
+    for (const model of scriptModels) {
+      try {
+        const response = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: scriptPrompt }] }],
+              generationConfig: {
+                temperature: 0.65,
+                maxOutputTokens: Math.min(30000, Math.max(8000, Math.round(scriptTargetWords * 2.2) + 2500)),
+              },
+            }),
+            signal: AbortSignal.timeout(requestTimeoutMs),
+          },
+        )
+        if (!response.ok) continue
+        const data = await response.json()
+        const candidate = data?.candidates?.[0]
+        const text = candidate?.content?.parts?.map((part: { text?: string }) => part?.text || "").join("")?.trim()
+        if (!text) continue
+        if (getWordCount(text) < scriptMinimumWords) continue
+        authoritativeScript = text
+        scriptModel = model
+        break
+      } catch {
+        continue
+      }
+    }
+
+    if (!authoritativeScript) {
+      return NextResponse.json({
+        error: "Gemini could not produce the complete word-for-word script at the requested length. No incomplete package was accepted.",
+      }, { status: 503 })
+    }
     const prompt = [
       "You are generating a " + protocolLabel + ".",
       "",
@@ -479,7 +560,12 @@ ${prompt}`,
       "OUTPUT LANGUAGE: " + normalizedLanguage,
       "STUDENT LEVEL: " + gradeLevel,
       "REQUESTED LENGTH: " + selectedLength + " minutes",
-      "TARGET NARRATION WORDS FOR LONG-FORM YOUTUBE: approximately " + targetWords,
+      "TARGET NARRATION WORDS: approximately " + targetWords,
+      "",
+      "AUTHORITATIVE WORD-FOR-WORD SCRIPT:",
+      authoritativeScript,
+      "",
+      "The script above is authoritative. Insert it verbatim into the protocol's main script section (YouTube PART 11, Classroom SECTION 11, Shorts SECTION 5). Do not shorten, summarize, rewrite, or replace it.",
       "",
       "LANGUAGE REQUIREMENT:", languageInstruction,
       "",
@@ -490,7 +576,8 @@ ${prompt}`,
       "- For Classroom Lesson, output SECTION 1 through SECTION 18, then SECTION 25 exactly once. Do not output Sections 19–24.",
       "- For Shorts, output SECTION 1 through SECTION 15, then SECTION 25 exactly once. Do not output Sections 16–24.",
       "- Never stop early because the response is long.",
-      "- Match all timestamps and narration to the requested duration.",
+      "- Match all timestamps to the authoritative script above.",
+      "- The authoritative script must appear in the main script section verbatim.",
       "- If a long package cannot fit in one response, the system will request continuation; then output only the missing sections requested.",
       "- Do not replace missing sections with a summary or duplicate an existing section.",
       "",
@@ -522,6 +609,10 @@ ${prompt}`,
         if (typeof generatedText === "string" && generatedText.trim()) {
           let completeText = generatedText.trim()
           let audit = auditPackage(completeText, normalizedPackageType, durationValue)
+          // The script was generated independently; replace the package's script section
+          // with that exact authoritative script before every audit.
+          completeText = injectAuthoritativeScript(completeText, normalizedPackageType, authoritativeScript)
+          audit = auditPackage(completeText, normalizedPackageType, durationValue)
 
           for (let continuation = 0; continuation < maxPackageContinuations && !audit.passed; continuation += 1) {
             const missing = audit.missing
@@ -600,8 +691,9 @@ ${prompt}`,
             audit = auditPackage(completeText, normalizedPackageType, durationValue)
           }
 
+          completeText = injectAuthoritativeScript(completeText, normalizedPackageType, authoritativeScript)
           audit = auditPackage(completeText, normalizedPackageType, durationValue)
-          if (audit.passed) return NextResponse.json({ text: completeText, model, audit })
+          if (audit.passed) return NextResponse.json({ text: completeText, model, scriptModel, audit })
           continue
         }
       } catch {
