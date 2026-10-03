@@ -1,21 +1,31 @@
 /**
  * NASA Scene Clip Engine
  *
- * Connects the real caption matcher to the real clip extractor:
- * candidate NASA videos + educational scene context
- * -> caption timestamps
- * -> short muted MP4 clips.
+ * Connects NASA candidate selection, reuse-aware diversity, caption matching,
+ * and real muted clip extraction.
  */
 
 const fs = require("fs")
 const path = require("path")
 const { matchNasaCaptions } = require("./nasa-caption-matcher")
 const { extractMultipleNasaClips } = require("./nasa-multi-clip-extractor")
+const {
+  chooseDiverseCandidates,
+  recordSelectedUsage,
+} = require("./nasa-visual-diversity")
 
 async function buildSceneClips(candidates, context, options = {}) {
   if (!Array.isArray(candidates) || !candidates.length) {
     throw new Error("candidates must contain at least one NASA video")
   }
+
+  const historyPath =
+    options.historyPath || path.join("tmp", "nasa-visual-history.json")
+
+  const selectedCandidates = chooseDiverseCandidates(candidates, {
+    historyPath,
+    limit: options.candidateLimit ?? candidates.length,
+  }).selected
 
   const matchOptions = {
     minimumScore: options.minimumScore ?? 0.08,
@@ -24,7 +34,7 @@ async function buildSceneClips(candidates, context, options = {}) {
 
   const matchedVideos = []
 
-  for (const candidate of candidates) {
+  for (const candidate of selectedCandidates) {
     if (!candidate?.nasaId) continue
 
     try {
@@ -56,15 +66,20 @@ async function buildSceneClips(candidates, context, options = {}) {
     }
   }
 
-  const extractionMatches = matchedVideos.flatMap((video) =>
-    video.matches.map((match) => ({
-      nasaId: video.nasaId,
-      start: match.start,
-      end: match.end,
-      text: match.text,
-      score: match.score,
-    }))
-  )
+  // Keep at most one caption match per source video for scene-level diversity.
+  // A later scene can still reuse the same NASA asset after the history penalty.
+  const extractionMatches = matchedVideos
+    .filter((video) => video.matches.length)
+    .map((video) => {
+      const match = video.matches[0]
+      return {
+        nasaId: video.nasaId,
+        start: match.start,
+        end: match.end,
+        text: match.text,
+        score: match.score,
+      }
+    })
 
   const clips = extractionMatches.length
     ? await extractMultipleNasaClips(extractionMatches, {
@@ -78,11 +93,25 @@ async function buildSceneClips(candidates, context, options = {}) {
         clips: [],
       }
 
+  const successfulClips = clips.clips.filter(
+    (clip) => clip.status === "success"
+  )
+
+  if (successfulClips.length) {
+    recordSelectedUsage(
+      successfulClips,
+      options.episodeId || "unknown-episode",
+      { historyPath }
+    )
+  }
+
   return {
     context,
     candidateCount: candidates.length,
+    selectedCandidateCount: selectedCandidates.length,
     matchedVideoCount: matchedVideos.filter((video) => video.matches.length).length,
     matchedVideos,
+    historyPath,
     ...clips,
   }
 }
@@ -90,17 +119,21 @@ async function buildSceneClips(candidates, context, options = {}) {
 module.exports = { buildSceneClips }
 
 if (require.main === module) {
-  const [inputFile, outputDir] = process.argv.slice(2)
+  const [inputFile, outputDir, historyPath, episodeId] = process.argv.slice(2)
 
   if (!inputFile) {
     throw new Error(
-      "Usage: node video/nasa-scene-clip-engine.js <scene.json> [outputDir]"
+      "Usage: node video/nasa-scene-clip-engine.js <scene.json> [outputDir] [history.json] [episodeId]"
     )
   }
 
   const input = JSON.parse(fs.readFileSync(inputFile, "utf8"))
 
-  buildSceneClips(input.candidates, input.context, { outputDir })
+  buildSceneClips(input.candidates, input.context, {
+    outputDir,
+    historyPath,
+    episodeId,
+  })
     .then((result) => console.log(JSON.stringify(result, null, 2)))
     .catch((error) => {
       console.error(error.message)
