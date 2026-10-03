@@ -265,23 +265,31 @@ export default function CosmosStudio() {
     setOpen(true)
     setVisualsOpen(false)
   }
-  function extractPart13(packageText: string) {
+  function extractProtocolSection(packageText: string, sectionNumber: number, nextSectionNumber: number) {
     const text = packageText.replace(/\r\n/g, "\n").replace(/\r/g, "\n")
-    const match = text.match(/(?:PART|STEP|भाग)\s*13[^\n]*\n([\s\S]*?)(?=\n(?:PART|STEP|भाग)\s*14\b)/i)
+    const match = text.match(new RegExp(`(?:PART|SECTION|STEP|भाग)\\s*${sectionNumber}[^\\n]*\\n([\\s\\S]*?)(?=\\n(?:PART|SECTION|STEP|भाग)\\s*${nextSectionNumber}\\b|$)`, "i"))
     return match?.[1]?.trim() || ""
   }
 
-  function extractPart14(packageText: string) {
-    const text = packageText.replace(/\r\n/g, "\n").replace(/\r/g, "\n")
-    const match = text.match(/(?:PART|STEP|भाग)\s*14[^\n]*\n([\s\S]*?)(?=\n(?:PART|STEP|भाग)\s*15\b|$)/i)
-    return match?.[1]?.trim() || ""
+  function extractProtocolVisualPrompt(packageText: string, type: "image" | "video", protocol: string) {
+    if (protocol === "lesson") return extractProtocolSection(packageText, 10, 11)
+    if (protocol === "shorts") {
+      return extractProtocolSection(packageText, type === "image" ? 8 : 9, type === "image" ? 9 : 10)
+    }
+    return extractProtocolSection(packageText, type === "image" ? 13 : 14, type === "image" ? 14 : 15)
   }
 
   function setAiVisualGenerationType(type: "image" | "video") {
     const packageText = result?.text || ""
     setAiVisualType(type)
-    setAiVisualPrompt(type === "image" ? extractPart13(packageText) : extractPart14(packageText))
+    setAiVisualPrompt(extractProtocolVisualPrompt(packageText, type, packageType))
     setAiVisualAsset(null)
+  }
+
+  function openAiVisuals(type: "image" | "video" = "video") {
+    setAiVisualGenerationType(type)
+    setAiVisualScene("")
+    setAiVisualOpen(true)
   }
 
   function openAiVisuals(type: "image" | "video" = "video") {
@@ -311,7 +319,7 @@ export default function CosmosStudio() {
 
   async function generateAiVisual() {
     if (!aiVisualPrompt.trim()) {
-      setStatus("The selected AI generation script is empty. Regenerate the YouTube package first.")
+      setStatus(`The selected ${packageType === "lesson" ? "Classroom" : packageType === "shorts" ? "Shorts" : "YouTube"} visual prompt is empty. Regenerate the package first.`)
       return
     }
     setAiVisualGenerating(true)
@@ -857,7 +865,7 @@ export default function CosmosStudio() {
                 placeholder="e.g. Scene 5 · 00:42–00:49"
                 maxLength={120}
               />
-                      <label htmlFor="ai-visual-prompt">Default Script {aiVisualType === "image" ? "13" : "14"} generation prompt</label>
+                      <label htmlFor="ai-visual-prompt">Default {packageType === "lesson" ? "Section 10" : packageType === "shorts" ? `Section ${aiVisualType === "image" ? "8" : "9"}` : `Part ${aiVisualType === "image" ? "13" : "14"}`} generation prompt</label>
               <textarea
                 id="ai-visual-prompt"
                 className="package-editor"
@@ -866,7 +874,7 @@ export default function CosmosStudio() {
                 onChange={(e) => setAiVisualPrompt(e.target.value)}
               />
               <p className="field-hint">
-                The default AI visual prompt comes from the selected protocol: YouTube uses Parts 13/14, Classroom uses Sections 10, and Shorts use Sections 8/9.
+                Defaults are protocol-specific and load automatically: YouTube uses Parts 13/14, Classroom uses Section 10, and Shorts use Sections 8/9. Changing AI Image / AI Video reloads the matching section from the current package.
               </p>
             </div>
 
