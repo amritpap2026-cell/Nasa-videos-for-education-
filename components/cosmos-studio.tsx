@@ -306,7 +306,15 @@ export default function CosmosStudio() {
       const response = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode: aiVisualType === "image" ? "ai-image" : "ai-video", prompt: aiVisualPrompt.trim(), scene: aiVisualScene.trim() }),
+        body: JSON.stringify({
+          mode: aiVisualScene.trim() === "YouTube thumbnail"
+            ? "thumbnail"
+            : aiVisualType === "image"
+              ? "ai-image"
+              : "ai-video",
+          prompt: aiVisualPrompt.trim(),
+          scene: aiVisualScene.trim(),
+        }),
       })
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || "AI visual generation failed")
