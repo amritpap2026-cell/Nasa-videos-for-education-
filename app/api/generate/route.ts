@@ -272,12 +272,24 @@ ${prompt}`,
     if (mode === "voiceover") {
       if (!key) return NextResponse.json({ error: "GEMINI_API_KEY is not configured for voiceover." }, { status: 503 })
       const script = typeof requestBody?.script === "string"
-        ? requestBody.script.replace(/\([^)]*\)|\[[^\]]*\]|\{[^}]*\}/g, " ").replace(/\b(?:pause|पॉज़|विराम)\s*\d*\s*(?:seconds?|सेकंड)?\b/gi, " ").replace(/\s*[—–-]\s*/g, " ").replace(/[<>*_#`]/g, " ").replace(/\s+/g, " ").trim()
+        ? requestBody.script
+            .replace(/<<<[^>]+>>>/g, " ")
+            .replace(/\([^)]*\)|\[[^\]]*\]|\{[^}]*\}/g, " ")
+            .replace(/\b(?:\d{1,2}:)?\d{1,2}:\d{2}\s*(?:-|–|—|to)\s*(?:\d{1,2}:)?\d{1,2}:\d{2}\b/gi, " ")
+            .replace(/\b\d{1,3}\s*(?:-|–|—|to)\s*\d{1,3}\s*(?:seconds?|secs?|sec|सेकंड)\b/gi, " ")
+            .replace(/\b(?:pause|पॉज़|विराम)\s*\d*\s*(?:seconds?|सेकंड)?\b/gi, " ")
+            .replace(/\b\d{1,2}:\d{2}\b/g, " ")
+            .replace(/\b\d+(?:\.\d+)?\s*(?:seconds?|secs?|sec|सेकंड)\b/gi, " ")
+            .replace(/\s*[—–-]\s*/g, " ")
+            .replace(/[,;:!?]+/g, " ")
+            .replace(/[<>*_#`]/g, " ")
+            .replace(/\s+/g, " ")
+            .trim()
         : ""
       const voice = typeof requestBody?.voice === "string" ? requestBody.voice : "Kore"
       const voiceLanguage = ["English", "Hindi", "Nepali"].includes(language) ? language : "English"
       if (!script) return NextResponse.json({ error: "Add a storytelling script before generating voiceover." }, { status: 400 })
-      const voicePrompt = `Read only the storytelling narration below, not any title, label, heading, metadata, timestamps, or production note. Perform it as a fluent, warm, cinematic educational voiceover for Class 8–12 students in ${voiceLanguage}. Preserve the exact meaning and language. Use natural pauses, emotional emphasis, and clear pronunciation. Do not add an introduction or outro.\n\nSTORYTELLING NARRATION:\n${script}`
+      const voicePrompt = `Read ONLY the pure spoken words in the narration below. Do not speak timestamps, time ranges, scene numbers, section or part numbers, labels, headings, metadata, production notes, punctuation, commas, hyphens, dashes, brackets, or symbols. Time ranges such as 0-22 sec, 00:00-00:22, or 0:22 are timing instructions only and must remain silent. Punctuation is only written structure and must never be read aloud. Do not invent, paraphrase, add, or remove spoken words. Perform it as a fluent, warm, cinematic educational voiceover for Class 8–12 students in ${voiceLanguage}. Preserve the exact meaning and language. Use natural pauses and clear pronunciation. Do not add an introduction or outro.\n\nPURE SPOKEN NARRATION:\n${script}`
       const voiceModels = [
         "gemini-3.8-flash-tts",
         "gemini-3.8-flash-lite-tts",
