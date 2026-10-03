@@ -38,6 +38,11 @@ export default function CosmosStudio() {
   const [voiceoverUsed, setVoiceoverUsed] = useState(false)
   const [storyText, setStoryText] = useState("")
   const [packageDone, setPackageDone] = useState(false)
+  const [aiVisualOpen, setAiVisualOpen] = useState(false)
+  const [aiVisualType, setAiVisualType] = useState<"image" | "video">("video")
+  const [aiVisualPrompt, setAiVisualPrompt] = useState("")
+  const [aiVisualScene, setAiVisualScene] = useState("")
+
 
   // Visuals (Step 3) — independent modal
   const [visualsOpen, setVisualsOpen] = useState(false)
@@ -243,6 +248,13 @@ export default function CosmosStudio() {
     setOpen(true)
     setVisualsOpen(false)
   }
+  function openAiVisuals(type: "image" | "video" = "video") {
+    setAiVisualType(type)
+    setAiVisualPrompt(storyText.trim() || result?.text || topic.trim())
+    setAiVisualScene("")
+    setAiVisualOpen(true)
+  }
+
   function openVisuals() {
     setVisualsTopic(topic.trim() || visualsTopic)
     setOpen(false)
@@ -653,6 +665,92 @@ export default function CosmosStudio() {
                 </div>
               </div>
             )}
+          </section>
+        </div>
+      )}
+
+      {/* ========== AI IMAGE / VIDEO GENERATION WINDOW ========== */}
+      {aiVisualOpen && (
+        <div
+          className="overlay"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setAiVisualOpen(false)
+          }}
+        >
+          <section
+            className="modal"
+            style={{ maxWidth: 960, width: "min(960px, calc(100vw - 32px))" }}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="ai-visual-title"
+          >
+            <div className="modal-head">
+              <div>
+                <div className="modal-kicker">AI Visual Studio</div>
+                <h2 id="ai-visual-title">Generate an image or video</h2>
+                <p className="muted">
+                  The default prompt comes from the same Gemini YouTube package/story used by this video.
+                  Edit it for the selected scene before sending it to your generation provider.
+                </p>
+              </div>
+              <button className="close" aria-label="Close AI visual generator" onClick={() => setAiVisualOpen(false)}>
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="field">
+              <p className="field-label">Generation type</p>
+              <div className="voice-buttons">
+                <button type="button" className={aiVisualType === "image" ? "voice active" : "voice"} onClick={() => setAiVisualType("image")}>
+                  AI Image
+                </button>
+                <button type="button" className={aiVisualType === "video" ? "voice active" : "voice"} onClick={() => setAiVisualType("video")}>
+                  AI Video
+                </button>
+              </div>
+            </div>
+
+            <div className="field">
+              <label htmlFor="ai-visual-scene">Script 12 scene / timestamp</label>
+              <input
+                id="ai-visual-scene"
+                value={aiVisualScene}
+                onChange={(e) => setAiVisualScene(e.target.value)}
+                placeholder="e.g. Scene 5 · 00:42–00:49"
+                maxLength={120}
+              />
+            </div>
+
+            <div className="field">
+              <label htmlFor="ai-visual-prompt">Default generation prompt</label>
+              <textarea
+                id="ai-visual-prompt"
+                className="package-editor"
+                style={{ minHeight: 300, width: "100%", resize: "vertical" }}
+                value={aiVisualPrompt}
+                onChange={(e) => setAiVisualPrompt(e.target.value)}
+                placeholder="Your Gemini YouTube package/story prompt will appear here."
+              />
+              <p className="field-hint">
+                This is intentionally editable. The final generated asset will later use the same scene/timeline
+                manifest as NASA, Pexels, and simulations.
+              </p>
+            </div>
+
+            <div className="voice-actions">
+              <button
+                className="secondary voice-play"
+                type="button"
+                onClick={() => setStatus("AI visual prompt ready. Provider connection will use this prompt and scene manifest.")}
+                disabled={!aiVisualPrompt.trim()}
+              >
+                Prepare {aiVisualType === "image" ? "image" : "video"} generation
+              </button>
+              <button className="secondary voice-play" type="button" onClick={() => setAiVisualOpen(false)}>
+                Done
+              </button>
+            </div>
           </section>
         </div>
       )}
