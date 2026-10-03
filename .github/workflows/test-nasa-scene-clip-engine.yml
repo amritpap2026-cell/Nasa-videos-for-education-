@@ -1,0 +1,62 @@
+name: Test NASA Scene Clip Engine
+
+on:
+  push:
+    branches:
+      - nasa-asset-engine
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install FFmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Create test scene
+        run: |
+          mkdir -p tmp
+          cat > tmp/scene.json <<'EOF'
+          {
+  "context": {
+    "title": "Why do black holes have such strong gravity?",
+    "description": "Educational explanation of black holes and their extreme gravity.",
+    "script": "A black hole has gravity so strong that even light cannot escape.",
+    "scene": "Explain the extreme gravity of a black hole.",
+    "visualRequirement": "Black hole, gravity, accretion disk, X-ray emission"
+  },
+  "candidates": [
+    {
+      "nasaId": "GSFC_20200302_M13568_OSIRISReXBH",
+      "title": "OSIRIS-REx Observes a Black Hole",
+      "description": "Visualization of a newly discovered black hole and its surrounding disk."
+    }
+  ]
+}
+
+          EOF
+
+      - name: Match captions and extract scene clips
+        run: |
+          node video/nasa-scene-clip-engine.js tmp/scene.json tmp/nasa-scene-clips > tmp/scene-result.json
+          cat tmp/scene-result.json
+
+      - name: Verify scene clips
+        run: |
+          test $(find tmp/nasa-scene-clips -name '*.mp4' | wc -l) -ge 1
+          for file in tmp/nasa-scene-clips/*.mp4; do
+            echo "Checking $file"
+            ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1 "$file"
+          done
+
+      - name: Upload scene clips
+        uses: actions/upload-artifact@v4
+        with:
+          name: nasa-scene-clips
+          path: tmp/nasa-scene-clips/*.mp4
