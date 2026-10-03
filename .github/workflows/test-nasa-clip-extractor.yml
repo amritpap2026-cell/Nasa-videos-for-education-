@@ -1,0 +1,35 @@
+name: Test NASA Clip Extractor
+
+on:
+  push:
+    branches:
+      - nasa-asset-engine
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install FFmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Extract real NASA clip
+        run: |
+          node video/nasa-clip-extractor.js GSFC_20200302_M13568_OSIRISReXBH 9.61 14.147 tmp/nasa-clips/black-hole.mp4
+
+      - name: Show clip file
+        run: |
+          ls -lh tmp/nasa-clips/black-hole.mp4
+          ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1 tmp/nasa-clips/black-hole.mp4
+
+      - name: Upload extracted clip
+        uses: actions/upload-artifact@v4
+        with:
+          name: nasa-black-hole-clip
+          path: tmp/nasa-clips/black-hole.mp4
