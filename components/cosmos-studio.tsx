@@ -539,7 +539,6 @@ export default function CosmosStudio() {
                 onChange={(e) => {
                   const value = e.target.value
                   setLengthValue(value)
-                  setLength(`0-${value}`)
                 }}
               />
               <p className="field-hint">
