@@ -363,9 +363,9 @@ ${prompt}`,
     const minimumLength = packageType === "shorts" ? 10 : 1
     const safeLengthValue = Number.isFinite(requestedLength) ? Math.min(maxAllowedLength, Math.max(minimumLength, Math.round(requestedLength))) : packageType === "shorts" ? 60 : 10
     const selectedLength = `0-${safeLengthValue}`
+    const normalizedPackageType = ["youtube", "lesson", "shorts"].includes(packageType) ? packageType : "youtube"
     if (!key) return NextResponse.json({ text: await createFallbackPackage(topic, normalizedLanguage, gradeLevel, selectedLength, normalizedPackageType), model: "local master-prompt fallback" })
     let masterPrompt = ""
-    const normalizedPackageType = ["youtube", "lesson", "shorts"].includes(packageType) ? packageType : "youtube"
     try {
       const promptResponse = await fetch(protocolPromptUrls[normalizedPackageType], { signal: AbortSignal.timeout(8_000), next: { revalidate: 3600 } })
       if (promptResponse.ok) masterPrompt = await promptResponse.text()
