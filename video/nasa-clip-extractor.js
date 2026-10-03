@@ -34,18 +34,48 @@ async function resolveVideoUrl(nasaId) {
   if (!idMatch) throw new Error(`Cannot derive NASA SVS ID from ${nasaId}`)
 
   const svsId = idMatch[1]
-  const data = await fetchJson(
-    `https://svs.gsfc.nasa.gov/api/search/?q=${encodeURIComponent(svsId)}`,
-    "NASA SVS search"
-  )
+  const pageUrl = `https://svs.gsfc.nasa.gov/${svsId}/`
 
-  const results = data.results || []
-  const exact = results.find((item) => String(item.id) === String(svsId))
-  const candidate = exact || results[0]
-  const videoUrl = candidate?.main_video?.url || null
+  // The Image Library manifest can be unavailable for some assets.
+  // NASA SVS pages still expose the actual downloadable movie URLs.
+  const pageRes = await fetch(pageUrl)
+  if (pageRes.ok) {
+    const html = await pageRes.text()
+    const links = []
+    const attributePattern = /(?:href|src|data-url|data-href)=["']([^"']+)["']/gi
 
-  if (!videoUrl) {
-    throw new Error(`No downloadable NASA/SVS video URL found for ${nasaId}`)
+    for (const match of html.matchAll(attributePattern)) {
+      const link = match[1].replace(/&amp;/g, "&")
+      if (/\.(?:mp4|webm|mov)(?:[?#]|$)/i.test(link)) {
+        try {
+          links.push(new URL(link, pageUrl).href)
+        } catch {}
+      }
+    }
+
+    const uniqueLinks = [...new Set(links)]
+
+    // Prefer MP4/WebM over huge master MOV files.
+    const ranked = uniqueLinks.sort((a, b) => {
+      const rank = (url) => {
+        if (/\.mp4(?:[?#]|$)/i.test(url)) return 0
+        if (/\.webm(?:[?#]|$)/i.test(url)) return 1
+        return 2
+      }
+      return rank(a) - rank(b)
+    })
+
+    if (ranked[0]) {
+      return {
+        videoUrl: ranked[0],
+        source: "svs.gsfc.nasa.gov",
+        svsId,
+        pageUrl,
+      }
+    }
+  }
+
+  throw new Error(`No downloadable NASA/SVS video URL found for ${nasaId}`)
   }
 
   return {
