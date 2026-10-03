@@ -12,7 +12,7 @@ LEARNING GOAL: [optional]
 RESOURCES: [optional]
 
 HARD COMPLETION RULE
-Return every section 1 through 18 in order. Never stop early. Match lesson length to the requested duration. If the lesson is longer, expand examples, guided practice, discussion, activities, and assessment—not filler.
+Return every section 1 through 18 in order. Every heading MUST begin with SECTION N. Never stop early. Match lesson length to the requested duration. If the lesson is longer, expand examples, guided practice, discussion, activities, and assessment—not filler.
 
 1. LESSON OVERVIEW — topic, duration, class, prerequisites, big question.
 2. LEARNING OBJECTIVES — measurable knowledge, skills, and understanding.
