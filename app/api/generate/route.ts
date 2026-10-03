@@ -39,6 +39,68 @@ function getMissingSections(text: string, packageType: string) {
   return required.filter((n) => !found.has(n))
 }
 
+function getSectionBlocks(text: string) {
+  const normalized = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n")
+  const matches = [...normalized.matchAll(/(?:^|\n)\s*(?:PART|SECTION|STEP|भाग)\s*(\d+)\b[^\n]*\n([\s\S]*?)(?=\n\s*(?:PART|SECTION|STEP|भाग)\s*\d+\b|$)/gi)]
+  return matches.map((match) => ({ number: Number(match[1]), body: match[2].trim() }))
+}
+
+function getWordCount(text: string) {
+  return text.trim() ? text.trim().split(/\s+/).length : 0
+}
+
+function getMainScript(text: string, packageType: string) {
+  const normalized = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n")
+  if (packageType === "youtube") {
+    const match = normalized.match(/PART\s*11\b[^\n]*<<<STORYTELLING_SCRIPT_START>>>\s*([\s\S]*?)\s*<<<STORYTELLING_SCRIPT_END>>>/i)
+    return match?.[1]?.trim() || ""
+  }
+  const section = getSectionBlocks(normalized).find((item) => item.number === (packageType === "lesson" ? 11 : 5))
+  return section?.body || ""
+}
+
+function getScriptMinimumWords(packageType: string, durationValue: number) {
+  if (packageType === "youtube") return Math.max(300, Math.round(durationValue * 125 * 0.85))
+  if (packageType === "lesson") return Math.max(250, Math.round(durationValue * 110 * 0.85))
+  return Math.max(25, Math.round((durationValue / 60) * 140 * 0.9))
+}
+
+function getTimelineEndSeconds(text: string, packageType: string) {
+  const blocks = getSectionBlocks(text)
+  const targetSection = blocks.find((item) => item.number === (packageType === "youtube" ? 12 : packageType === "shorts" ? 6 : 12))
+  if (!targetSection) return 0
+  const matches = [...targetSection.body.matchAll(/(?:^|\n)\s*(?:\d{1,2}:)?\d{2}:\d{2}\b|(?:^|\n)\s*\d{1,3}:\d{2}\b/g)]
+  let maxSeconds = 0
+  for (const match of matches) {
+    const value = match[0].trim().replace(/^.*?([0-9]{1,2}:?[0-9]{2}:?[0-9]{2})$/, "$1")
+    const parts = value.split(":").map(Number)
+    const seconds = parts.length === 3 ? parts[0] * 3600 + parts[1] * 60 + parts[2] : parts[0] * 60 + parts[1]
+    if (Number.isFinite(seconds)) maxSeconds = Math.max(maxSeconds, seconds)
+  }
+  return maxSeconds
+}
+
+function auditPackage(text: string, packageType: string, durationValue: number) {
+  const required = requiredPackageSections(packageType)
+  const blocks = getSectionBlocks(text)
+  const numbers = blocks.map((block) => block.number)
+  const missing = required.filter((number) => !numbers.includes(number))
+  const duplicates = required.filter((number) => numbers.filter((value) => value === number).length > 1)
+  const wrongOrder = required.some((number, index) => numbers[index] !== number)
+  const script = getMainScript(text, packageType)
+  const scriptWords = getWordCount(script)
+  const minimumScriptWords = getScriptMinimumWords(packageType, durationValue)
+  const scriptPass = scriptWords >= minimumScriptWords
+  const timelineEndSeconds = getTimelineEndSeconds(text, packageType)
+  const targetSeconds = packageType === "shorts" ? durationValue : durationValue * 60
+  const timelinePass = timelineEndSeconds >= Math.max(1, Math.round(targetSeconds * 0.95))
+  const wrapperPass = packageType !== "youtube" || /<<<STORYTELLING_SCRIPT_START>>>[\s\S]*<<<STORYTELLING_SCRIPT_END>>>/i.test(text)
+  return {
+    passed: missing.length === 0 && duplicates.length === 0 && !wrongOrder && scriptPass && timelinePass && wrapperPass,
+    missing, duplicates, wrongOrder, scriptWords, minimumScriptWords, timelineEndSeconds, targetSeconds, scriptPass, timelinePass, wrapperPass,
+  }
+}
+
 function pcmBase64ToWavBase64(base64: string, sampleRate = 24000, channels = 1, bitsPerSample = 16) {
   const pcm = Buffer.from(base64, "base64")
   const byteRate = sampleRate * channels * (bitsPerSample / 8)
@@ -451,27 +513,43 @@ ${prompt}`,
         let generatedText = data?.candidates?.[0]?.content?.parts?.[0]?.text
         if (typeof generatedText === "string" && generatedText.trim()) {
           let completeText = generatedText.trim()
-          for (let continuation = 0; continuation < 4; continuation += 1) {
-            const missing = getMissingSections(completeText, normalizedPackageType)
-            if (!missing.length) break
+          let audit = auditPackage(completeText, normalizedPackageType, durationValue)
+
+          for (let continuation = 0; continuation < maxPackageContinuations && !audit.passed; continuation += 1) {
+            const missing = audit.missing
+            const scriptSection = normalizedPackageType === "shorts" ? 5 : 11
+            const timelineSection = normalizedPackageType === "youtube" ? 12 : normalizedPackageType === "shorts" ? 6 : 11
+            const needsScriptRepair = !audit.scriptPass || !audit.wrapperPass
+            const needsTimelineRepair = !audit.timelinePass
             const continuationPrompt = [
-              "CONTINUATION REQUIRED.",
-              "The previous response stopped before the package was complete.",
+              "PACKAGE REPAIR / CONTINUATION REQUIRED.",
+              "Do not return an audit report. Return production content only.",
+              "The package is not complete until the server audit passes.",
               "Protocol: " + normalizedPackageType,
               "Topic: " + topic.trim(),
               "Language: " + normalizedLanguage,
               "Requested length: " + selectedLength + " minutes",
-              "Missing sections: " + missing.join(", "),
+              "Required sections: " + requiredPackageSections(normalizedPackageType).join(", "),
+              "Missing sections: " + (missing.length ? missing.join(", ") : "none"),
+              "Current script section: " + scriptSection,
+              "Script minimum words: " + audit.minimumScriptWords,
+              "Current script words: " + audit.scriptWords,
+              "Timeline target seconds: " + audit.targetSeconds,
+              "Current timeline end seconds: " + audit.timelineEndSeconds,
+              needsScriptRepair ? "SCRIPT REPAIR REQUIRED: output a complete replacement of the script section for the entire requested runtime. Do not summarize or shorten it." : "",
+              needsTimelineRepair ? "TIMELINE REPAIR REQUIRED: output a complete replacement of the timeline section so it reaches the requested runtime and aligns with the full script." : "",
+              missing.length ? "SECTION COMPLETION REQUIRED: generate every missing section in numerical order without repeating existing sections." : "",
               "",
-              "Existing package tail for continuity:",
-              completeText.slice(-18000),
+              "Existing package for continuity:",
+              completeText.slice(-30000),
               "",
               "AUTHORITATIVE PROTOCOL:",
-              masterPrompt || "Follow the selected protocol.",
+              masterPrompt || "Follow the selected protocol exactly.",
               "",
-              "Output ONLY the missing sections, starting with the lowest missing section number.",
-              "Never repeat an existing section. Never summarize a missing section.",
-            ].join("\n")
+              "If repairing an existing script or timeline, output the complete replacement section with its required heading. Never append a second copy of that section.",
+              "Do not output explanations, apologies, or summaries.",
+            ].filter(Boolean).join("\n")
+
             const continuationResponse = await fetch(
               `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`,
               {
@@ -479,24 +557,36 @@ ${prompt}`,
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                   contents: [{ parts: [{ text: continuationPrompt }] }],
-                  generationConfig: { temperature: 0.6, maxOutputTokens: Math.min(40000, Math.max(12000, maxOutputTokens)) },
+                  generationConfig: { temperature: 0.55, maxOutputTokens: Math.min(50000, Math.max(16000, maxOutputTokens)) },
                 }),
-                signal: AbortSignal.timeout(55_000),
+                signal: AbortSignal.timeout(packageContinuationTimeoutMs),
               },
             )
             if (!continuationResponse.ok) break
             const continuationData = await continuationResponse.json()
             const continuationText = continuationData?.candidates?.[0]?.content?.parts?.[0]?.text
             if (typeof continuationText !== "string" || !continuationText.trim()) break
-            completeText += "\n\n" + continuationText.trim()
+
+            const replacementBlocks = getSectionBlocks(continuationText)
+            if (needsScriptRepair || needsTimelineRepair) {
+              const replacements = new Map(replacementBlocks.map((block) => [block.number, block.body]))
+              for (const number of [scriptSection, timelineSection]) {
+                const body = replacements.get(number)
+                if (!body) continue
+                const headingRegex = new RegExp(`(?:^|\\n)\\s*(?:PART|SECTION|STEP|भाग)\\s*${number}\\b[^\\n]*\\n[\\s\\S]*?(?=\\n\\s*(?:PART|SECTION|STEP|भाग)\\s*\\d+\\b|$)`, "i")
+                if (headingRegex.test(completeText)) {
+                  completeText = completeText.replace(headingRegex, `\\n${normalizedPackageType === "youtube" ? "PART" : "SECTION"} ${number}\\n${body}\\n`)
+                }
+              }
+            } else {
+              completeText += "\n\n" + continuationText.trim()
+            }
+            audit = auditPackage(completeText, normalizedPackageType, durationValue)
           }
-          const remaining = getMissingSections(completeText, normalizedPackageType)
-          if (!remaining.length) return NextResponse.json({ text: completeText, model })
-          return NextResponse.json({
-            text: completeText,
-            model,
-            notice: "Gemini output ended early; continuation was attempted. Missing sections: " + remaining.join(", "),
-          })
+
+          audit = auditPackage(completeText, normalizedPackageType, durationValue)
+          if (audit.passed) return NextResponse.json({ text: completeText, model, audit })
+          continue
         }
       } catch {
         // Try the next free model when a model is unavailable or times out.
