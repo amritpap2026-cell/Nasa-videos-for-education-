@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { ArrowRight, Check, Film, Globe2, Lightbulb, Search, Sparkles, Volume2, X } from "lucide-react"
+import { ArrowRight, Check, Film, Globe2, Image as ImageIcon, Lightbulb, Search, Sparkles, Video, Volume2, X } from "lucide-react"
 
 type Result = { text: string; model: string; notice?: string }
 
@@ -24,8 +24,8 @@ export default function CosmosStudio() {
   const [open, setOpen] = useState(false)
   const [topic, setTopic] = useState("")
   const [language, setLanguage] = useState("English")
-  const [gradeLevel, setGradeLevel] = useState("Class 8–10")
-  const [length, setLength] = useState("0-10")
+  const [gradeLevel, setGradeLevel] = useState("General public")
+  const [length, setLength] = useState("10")
   const [packageType, setPackageType] = useState("youtube")
   const [loading, setLoading] = useState(false)
   const [status, setStatus] = useState("")
@@ -38,6 +38,11 @@ export default function CosmosStudio() {
   const [voiceoverUsed, setVoiceoverUsed] = useState(false)
   const [storyText, setStoryText] = useState("")
   const [packageDone, setPackageDone] = useState(false)
+  const [generationMode, setGenerationMode] = useState<"master" | "scriptwriter">("master")
+  const [assetOpen, setAssetOpen] = useState(false)
+  const [assetType, setAssetType] = useState<"image" | "video" | "thumbnail" | "seo">("image")
+  const [assetLoading, setAssetLoading] = useState(false)
+  const [assetText, setAssetText] = useState("")
 
   // Visuals (Step 3) — independent modal
   const [visualsOpen, setVisualsOpen] = useState(false)
@@ -66,7 +71,7 @@ export default function CosmosStudio() {
     }
   }
 
-  async function generate() {
+  async function generate(mode: "master" | "scriptwriter") {
     setLoading(true)
     setStatus("")
     setResult(null)
@@ -74,7 +79,7 @@ export default function CosmosStudio() {
       const response = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ topic, language, gradeLevel, length, packageType }),
+        body: JSON.stringify({ topic, language, length, mode }),
       })
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || "Generation failed")
@@ -90,7 +95,7 @@ export default function CosmosStudio() {
   async function openExternalTts(url: string, name: string) {
     const story = storyText.trim()
     if (!story) {
-      setStatus("Extract Part 11 into the second window first.")
+      setStatus("Extract storytelling script into the second window first.")
       return
     }
     try {
@@ -103,7 +108,7 @@ export default function CosmosStudio() {
     }
   }
 
-  function extractPart11(packageText: string) {
+  function extractStorytellingScript(packageText: string) {
     if (!packageText.trim()) return ""
     const text = packageText.replace(/\r\n/g, "\n").replace(/\r/g, "\n")
 
@@ -137,8 +142,9 @@ export default function CosmosStudio() {
       )
     }
 
-    // Prefer the line that is specifically Part 11 of (STORYTELLING SCRIPT)
-    let start = lines.findIndex((line) => /\(STORYTELLING SCRIPT\)/i.test(line) && line.trim().length < 220)
+    // Prefer the stable header; numeric Part/Step labels are only a legacy fallback.
+    let start = lines.findIndex((line) => /FULL WORD-FOR-WORD SCRIPT \(STORYTELLING SCRIPT\)/i.test(line) && line.trim().length < 220)
+    if (start < 0) start = lines.findIndex((line) => /\(STORYTELLING SCRIPT\)/i.test(line) && line.trim().length < 220)
     if (start < 0) start = lines.findIndex(headingTest)
     if (start < 0) return ""
 
@@ -147,15 +153,15 @@ export default function CosmosStudio() {
     return body.replace(/^\n+/, "").replace(/\s+$/, "")
   }
 
-  function extractPart11ToStoryWindow() {
+  function extractStorytellingToStoryWindow() {
     const packageText = result?.text || ""
-    const script = extractPart11(packageText)
+    const script = extractStorytellingScript(packageText)
     if (!script) {
-      setStatus("Could not find Part 11 (STORYTELLING SCRIPT) in the first window. Look for a heading that contains (STORYTELLING SCRIPT), then Part 12 below it.")
+      setStatus("Could not find FULL WORD-FOR-WORD SCRIPT (STORYTELLING SCRIPT) in the generated package.")
       return
     }
     setStoryText(script)
-    setStatus("Part 11 (STORYTELLING SCRIPT) copied identically into the second window.")
+    setStatus("The complete storytelling script was extracted into the second window.")
   }
 
   async function generateVoiceover() {
@@ -235,6 +241,22 @@ export default function CosmosStudio() {
     setOpen(true)
     setVisualsOpen(false)
   }
+  async function generateAsset(type: "image" | "video" | "thumbnail" | "seo") {
+    setAssetType(type); setAssetLoading(true); setAssetText("")
+    try {
+      const response = await fetch("/api/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mode: type === "seo" ? "seo" : "asset-prompt", assetType: type, topic: topic.trim(), language }) })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || "Generation failed")
+      setAssetText(data.text || "")
+    } catch (error) { setAssetText(error instanceof Error ? error.message : "Generation failed.") }
+    finally { setAssetLoading(false) }
+  }
+
+  function openAssets(type: "image" | "video" | "thumbnail" | "seo") {
+    setAssetType(type); setAssetOpen(true)
+    if (topic.trim().length >= 3) void generateAsset(type)
+  }
+
   function openVisuals() {
     setVisualsTopic(topic.trim() || visualsTopic)
     setOpen(false)
@@ -260,9 +282,9 @@ export default function CosmosStudio() {
 
       <section className="hero">
         <div>
-          <div className="eyebrow">NASA learning studio</div>
+          <div className="eyebrow">Universal YouTube studio</div>
           <h1>
-            Turn curiosity into a <span>video lesson.</span>
+            Turn any topic into a <span>YouTube story.</span>
           </h1>
           <p>
             Research a space topic, write a complete student-friendly story, create narration, find visuals, and
@@ -310,7 +332,7 @@ export default function CosmosStudio() {
           <span className="step-number">03</span>
           <Sparkles className="icon" />
           <h3>Visuals</h3>
-          <p>Search NASA footage first, then use Pexels when NASA has no match.</p>
+          <p>Search relevant real/archival/stock visuals, with NASA available as a specialist source.</p>
           <button className="workflow-button" type="button" onClick={openVisuals}>
             <span className="workflow-pending">
               <Film size={14} /> Open visuals
@@ -338,8 +360,8 @@ export default function CosmosStudio() {
             <div className="modal-head">
               <div>
                 <div className="modal-kicker">Step 1 of 3</div>
-                <h2 id="creator-title">Create your lesson</h2>
-                <p className="muted">Set the basics first. You can edit the generated story before creating audio.</p>
+                <h2 id="creator-title">Create your YouTube video</h2>
+                <p className="muted">Set the topic, audience and runtime. You can edit the generated package before creating audio.</p>
               </div>
               <button className="close" aria-label="Close creator" onClick={() => setOpen(false)}>
                 <X size={18} />
@@ -384,23 +406,25 @@ export default function CosmosStudio() {
             </div>
 
             <div className="field">
-              <label htmlFor="grade-level">Student level</label>
+              <label htmlFor="grade-level">Audience</label>
               <select id="grade-level" value={gradeLevel} onChange={(e) => setGradeLevel(e.target.value)}>
-                <option>Class 8–10</option>
+                <option>General public</option>
                 <option>Class 11–12</option>
                 <option>Class 8–12</option>
               </select>
-              <p className="field-hint">Simple explanations, examples, and questions for school learners.</p>
+              <p className="field-hint">General public is the default audience.</p>
             </div>
 
             <div className="field">
               <label htmlFor="length">Video length (minutes)</label>
               <select id="length" value={length} onChange={(e) => setLength(e.target.value)}>
-                <option value="0-5">0–5</option>
-                <option value="0-10">0–10</option>
-                <option value="0-15">0–15</option>
-                <option value="0-30">0–30</option>
-                <option value="0-60">0–60</option>
+                <option value="5">5</option>
+                <option value="10">10</option>
+                <option value="15">15</option>
+                <option value="30">30</option>
+                <option value="60">60</option>
+                <option value="90">90</option>
+                <option value="120">120</option>
               </select>
             </div>
 
@@ -417,62 +441,28 @@ export default function CosmosStudio() {
             )}
 
             <div className="field">
-              <p className="field-label">Select this package</p>
-              <div className="package-options" role="group" aria-label="Select video package" style={{ display: "grid", gap: 8 }}>
-                <button
-                  type="button"
-                  className={packageType === "youtube" ? "package-option active" : "package-option"}
-                  style={{
-                    textAlign: "left",
-                    padding: "12px 14px",
-                    borderRadius: 10,
-                    border: "1px solid",
-                    borderColor: packageType === "youtube" ? "#16a34a" : "#d7e9e8",
-                    background: packageType === "youtube" ? "#eaf9f0" : "white",
-                  }}
-                  onClick={() => setPackageType("youtube")}
-                >
-                  YouTube package
-                  <span style={{ display: "block", fontSize: 12, opacity: 0.72 }}>Title, description, tags, SEO, script</span>
+              <p className="field-label">Generation method</p>
+              <p className="field-hint">Both modes use the same live research. Master Prompt follows the existing production protocol; Scriptwriter is free-form.</p>
+              <div style={{ display: "grid", gap: 10 }}>
+                <button type="button" onClick={() => setGenerationMode("master")} style={{ textAlign: "left", padding: 14, borderRadius: 10, border: "2px solid #16a34a", background: generationMode === "master" ? "#eaf9f0" : "white" }}>
+                  <strong>Generate with master prompt</strong>
+                  <span style={{ display: "block", fontSize: 12, opacity: 0.72 }}>Research + master protocol + complete audited package</span>
                 </button>
-                <button
-                  type="button"
-                  className={packageType === "lesson" ? "package-option active" : "package-option"}
-                  style={{
-                    textAlign: "left",
-                    padding: "12px 14px",
-                    borderRadius: 10,
-                    border: "1px solid",
-                    borderColor: packageType === "lesson" ? "#16a34a" : "#d7e9e8",
-                    background: packageType === "lesson" ? "#eaf9f0" : "white",
-                  }}
-                  onClick={() => setPackageType("lesson")}
-                >
-                  Classroom lesson
-                  <span style={{ display: "block", fontSize: 12, opacity: 0.72 }}>Simple teaching flow and review questions</span>
-                </button>
-                <button
-                  type="button"
-                  className={packageType === "shorts" ? "package-option active" : "package-option"}
-                  style={{
-                    textAlign: "left",
-                    padding: "12px 14px",
-                    borderRadius: 10,
-                    border: "1px solid",
-                    borderColor: packageType === "shorts" ? "#16a34a" : "#d7e9e8",
-                    background: packageType === "shorts" ? "#eaf9f0" : "white",
-                  }}
-                  onClick={() => setPackageType("shorts")}
-                >
-                  Short video
-                  <span style={{ display: "block", fontSize: 12, opacity: 0.72 }}>Fast hook and concise narration</span>
+                <button type="button" onClick={() => setGenerationMode("scriptwriter")} style={{ textAlign: "left", padding: 14, borderRadius: 10, border: "2px solid #2563eb", background: generationMode === "scriptwriter" ? "#eff6ff" : "white" }}>
+                  <strong>Generate with scriptwriter</strong>
+                  <span style={{ display: "block", fontSize: 12, opacity: 0.72 }}>Research + creative documentary writing for any topic and runtime</span>
                 </button>
               </div>
             </div>
 
-            <button className="generate" onClick={generate} disabled={loading || topic.trim().length < 3}>
-              {loading ? "Generating your package..." : "Generate YouTube package"}
-            </button>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <button className="generate" onClick={() => generate("master")} disabled={loading || topic.trim().length < 3}>
+                {loading && generationMode === "master" ? "Generating..." : "Generate with master prompt"}
+              </button>
+              <button className="generate" onClick={() => generate("scriptwriter")} disabled={loading || topic.trim().length < 3}>
+                {loading && generationMode === "scriptwriter" ? "Generating..." : "Generate with scriptwriter"}
+              </button>
+            </div>
 
             {status && (
               <p className="status" role="status">
@@ -504,7 +494,7 @@ export default function CosmosStudio() {
                   style={{ marginTop: 18, padding: 18, border: "2px solid #b7ded1", borderRadius: 14, background: "#f4fbf7" }}
                 >
                   <label htmlFor="story-window">
-                    <strong>Part 11 storytelling script</strong>
+                    <strong>Full word-for-word storytelling script</strong>
                   </label>
                   <p className="field-hint">
                     This window stays blank until you press Extract Part 11. That copies only Part 11
@@ -514,7 +504,7 @@ export default function CosmosStudio() {
                   <button
                     className="secondary voice-play"
                     type="button"
-                    onClick={extractPart11ToStoryWindow}
+                    onClick={extractStorytellingToStoryWindow}
                     style={{ marginTop: 10 }}
                   >
                     Extract Part 11
@@ -525,7 +515,7 @@ export default function CosmosStudio() {
                     style={{ minHeight: 360, width: "100%", resize: "vertical", marginTop: 10 }}
                     value={storyText}
                     onChange={(e) => setStoryText(e.target.value)}
-                    placeholder="Blank until you extract Part 11 from the YouTube package above."
+                    placeholder="Blank until you extract the storytelling script from the YouTube package above."
                     aria-describedby="story-window-help"
                   />
                   <span id="story-window-help" className="sr-only">
@@ -558,6 +548,12 @@ export default function CosmosStudio() {
                   </button>
                 </div>
 
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, marginTop: 14 }}>
+                  <button className="secondary voice-play" type="button" onClick={() => openAssets("image")}><ImageIcon size={15} /> AI image</button>
+                  <button className="secondary voice-play" type="button" onClick={() => openAssets("video")}><Video size={15} /> AI video</button>
+                  <button className="secondary voice-play" type="button" onClick={() => openAssets("thumbnail")}><ImageIcon size={15} /> Thumbnail</button>
+                  <button className="secondary voice-play" type="button" onClick={() => openAssets("seo")}><Search size={15} /> SEO + tags</button>
+                </div>
                 <div className="voiceover">
                   <div>
                     <p className="field-label">Generate voiceover</p>
@@ -649,6 +645,22 @@ export default function CosmosStudio() {
         </div>
       )}
 
+      {assetOpen && (
+        <div className="overlay" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setAssetOpen(false) }}>
+          <section className="modal" style={{ maxWidth: 960, width: "min(960px, calc(100vw - 32px))" }} role="dialog" aria-modal="true">
+            <div className="modal-head">
+              <div><div className="modal-kicker">AI production workspace</div>
+                <h2>{assetType === "image" ? "AI image prompts" : assetType === "video" ? "AI video prompts" : assetType === "thumbnail" ? "Thumbnail concepts" : "SEO + tags"}</h2>
+                <p className="muted">Generated from the current topic. You can edit the result before using it.</p>
+              </div>
+              <button className="close" aria-label="Close" onClick={() => setAssetOpen(false)}><X size={18} /></button>
+            </div>
+            <button className="generate" type="button" onClick={() => generateAsset(assetType)} disabled={assetLoading || topic.trim().length < 3}>{assetLoading ? "Generating..." : "Generate"}</button>
+            {assetText && <textarea className="package-editor" style={{ minHeight: 500, width: "100%", marginTop: 14 }} value={assetText} onChange={(e) => setAssetText(e.target.value)} />}
+          </section>
+        </div>
+      )}
+
       {/* ========== STEP 3 VISUALS MODAL (independent) ========== */}
       {visualsOpen && (
         <div
@@ -668,9 +680,9 @@ export default function CosmosStudio() {
             <div className="modal-head">
               <div>
                 <div className="modal-kicker">Step 3 of 3 · Visuals</div>
-                <h2 id="visuals-title">Find NASA & stock footage</h2>
+                <h2 id="visuals-title">Find real & stock footage</h2>
                 <p className="muted">
-                  Search the NASA Image and Video Library first. If nothing matches, Pexels is used as a fallback.
+                  Search the NASA Image and Video Library when relevant; use Pexels as a stock fallback when configured.
                 </p>
               </div>
               <button className="close" aria-label="Close visuals" onClick={() => setVisualsOpen(false)}>
