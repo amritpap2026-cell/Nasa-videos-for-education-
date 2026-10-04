@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { ArrowRight, Check, Film, Globe2, Lightbulb, Search, Sparkles, Volume2, X } from "lucide-react"
+import { ArrowRight, Check, Film, Globe2, Image as ImageIcon, Lightbulb, Search, Sparkles, Video, Volume2, X } from "lucide-react"
 
 type Result = { text: string; model: string; notice?: string }
 
@@ -24,8 +24,8 @@ export default function CosmosStudio() {
   const [open, setOpen] = useState(false)
   const [topic, setTopic] = useState("")
   const [language, setLanguage] = useState("English")
-  const [gradeLevel, setGradeLevel] = useState("Class 8–10")
-  const [length, setLength] = useState("0-10")
+  const [gradeLevel, setGradeLevel] = useState("General public")
+  const [length, setLength] = useState("10")
   const [packageType, setPackageType] = useState("youtube")
   const [loading, setLoading] = useState(false)
   const [status, setStatus] = useState("")
@@ -37,7 +37,7 @@ export default function CosmosStudio() {
   const [audioUrl, setAudioUrl] = useState("")
   const [voiceoverUsed, setVoiceoverUsed] = useState(false)
   const [storyText, setStoryText] = useState("")
-  const [packageDone, setPackageDone] = useState(false)
+  const [packageDone, setPackageDone] = useState(false)\n  const [generationMode, setGenerationMode] = useState<"master" | "scriptwriter">("master")\n  const [assetOpen, setAssetOpen] = useState(false)\n  const [assetType, setAssetType] = useState<"image" | "video" | "thumbnail" | "seo">("image")\n  const [assetLoading, setAssetLoading] = useState(false)\n  const [assetText, setAssetText] = useState("")
 
   // Visuals (Step 3) — independent modal
   const [visualsOpen, setVisualsOpen] = useState(false)
@@ -66,7 +66,7 @@ export default function CosmosStudio() {
     }
   }
 
-  async function generate() {
+  async function generate(mode: "master" | "scriptwriter") {
     setLoading(true)
     setStatus("")
     setResult(null)
@@ -74,7 +74,7 @@ export default function CosmosStudio() {
       const response = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ topic, language, gradeLevel, length, packageType }),
+        body: JSON.stringify({ topic, language, length, mode }),
       })
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || "Generation failed")
@@ -90,7 +90,7 @@ export default function CosmosStudio() {
   async function openExternalTts(url: string, name: string) {
     const story = storyText.trim()
     if (!story) {
-      setStatus("Extract Part 11 into the second window first.")
+      setStatus("Extract storytelling script into the second window first.")
       return
     }
     try {
@@ -149,9 +149,9 @@ export default function CosmosStudio() {
 
   function extractPart11ToStoryWindow() {
     const packageText = result?.text || ""
-    const script = extractPart11(packageText)
+    const script = extractStorytellingScript(packageText)
     if (!script) {
-      setStatus("Could not find Part 11 (STORYTELLING SCRIPT) in the first window. Look for a heading that contains (STORYTELLING SCRIPT), then Part 12 below it.")
+      setStatus("Could not find FULL WORD-FOR-WORD SCRIPT (STORYTELLING SCRIPT) in the first window. Look for a heading that contains (STORYTELLING SCRIPT), then Part 12 below it.")
       return
     }
     setStoryText(script)
@@ -235,6 +235,22 @@ export default function CosmosStudio() {
     setOpen(true)
     setVisualsOpen(false)
   }
+  async function generateAsset(type: "image" | "video" | "thumbnail" | "seo") {
+    setAssetType(type); setAssetLoading(true); setAssetText("")
+    try {
+      const response = await fetch("/api/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mode: type === "seo" ? "seo" : "asset-prompt", assetType: type, topic: topic.trim(), language }) })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || "Generation failed")
+      setAssetText(data.text || "")
+    } catch (error) { setAssetText(error instanceof Error ? error.message : "Generation failed.") }
+    finally { setAssetLoading(false) }
+  }
+
+  function openAssets(type: "image" | "video" | "thumbnail" | "seo") {
+    setAssetType(type); setAssetOpen(true)
+    if (topic.trim().length >= 3) void generateAsset(type)
+  }
+
   function openVisuals() {
     setVisualsTopic(topic.trim() || visualsTopic)
     setOpen(false)
@@ -260,9 +276,9 @@ export default function CosmosStudio() {
 
       <section className="hero">
         <div>
-          <div className="eyebrow">NASA learning studio</div>
+          <div className="eyebrow">Universal YouTube studio</div>
           <h1>
-            Turn curiosity into a <span>video lesson.</span>
+            Turn any topic into a <span>YouTube story.</span>
           </h1>
           <p>
             Research a space topic, write a complete student-friendly story, create narration, find visuals, and
@@ -384,13 +400,13 @@ export default function CosmosStudio() {
             </div>
 
             <div className="field">
-              <label htmlFor="grade-level">Student level</label>
+              <label htmlFor="grade-level">Audience</label>
               <select id="grade-level" value={gradeLevel} onChange={(e) => setGradeLevel(e.target.value)}>
-                <option>Class 8–10</option>
+                <option>General public</option>
                 <option>Class 11–12</option>
                 <option>Class 8–12</option>
               </select>
-              <p className="field-hint">Simple explanations, examples, and questions for school learners.</p>
+              <p className="field-hint">General public is the default audience.</p>
             </div>
 
             <div className="field">
@@ -504,7 +520,7 @@ export default function CosmosStudio() {
                   style={{ marginTop: 18, padding: 18, border: "2px solid #b7ded1", borderRadius: 14, background: "#f4fbf7" }}
                 >
                   <label htmlFor="story-window">
-                    <strong>Part 11 storytelling script</strong>
+                    <strong>Full word-for-word storytelling script</strong>
                   </label>
                   <p className="field-hint">
                     This window stays blank until you press Extract Part 11. That copies only Part 11
@@ -558,6 +574,12 @@ export default function CosmosStudio() {
                   </button>
                 </div>
 
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, marginTop: 14 }}>
+                  <button className="secondary voice-play" type="button" onClick={() => openAssets("image")}><ImageIcon size={15} /> AI image</button>
+                  <button className="secondary voice-play" type="button" onClick={() => openAssets("video")}><Video size={15} /> AI video</button>
+                  <button className="secondary voice-play" type="button" onClick={() => openAssets("thumbnail")}><ImageIcon size={15} /> Thumbnail</button>
+                  <button className="secondary voice-play" type="button" onClick={() => openAssets("seo")}><Search size={15} /> SEO + tags</button>
+                </div>
                 <div className="voiceover">
                   <div>
                     <p className="field-label">Generate voiceover</p>
@@ -645,6 +667,22 @@ export default function CosmosStudio() {
                 </div>
               </div>
             )}
+          </section>
+        </div>
+      )}
+
+      {assetOpen && (
+        <div className="overlay" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setAssetOpen(false) }}>
+          <section className="modal" style={{ maxWidth: 960, width: "min(960px, calc(100vw - 32px))" }} role="dialog" aria-modal="true">
+            <div className="modal-head">
+              <div><div className="modal-kicker">AI production workspace</div>
+                <h2>{assetType === "image" ? "AI image prompts" : assetType === "video" ? "AI video prompts" : assetType === "thumbnail" ? "Thumbnail concepts" : "SEO + tags"}</h2>
+                <p className="muted">Generated from the current topic. You can edit the result before using it.</p>
+              </div>
+              <button className="close" aria-label="Close" onClick={() => setAssetOpen(false)}><X size={18} /></button>
+            </div>
+            <button className="generate" type="button" onClick={() => generateAsset(assetType)} disabled={assetLoading || topic.trim().length < 3}>{assetLoading ? "Generating..." : "Generate"}</button>
+            {assetText && <textarea className="package-editor" style={{ minHeight: 500, width: "100%", marginTop: 14 }} value={assetText} onChange={(e) => setAssetText(e.target.value)} />}
           </section>
         </div>
       )}
