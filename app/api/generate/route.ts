@@ -72,7 +72,7 @@ export async function POST(request: Request) {
     if (mode !== "voiceover" && topic.length < 3) return NextResponse.json({ error: "Please enter a topic with at least 3 characters." }, { status: 400 })
     if (mode === "voiceover") {
       if (!key) return NextResponse.json({ error: "GEMINI_API_KEY is not configured for voiceover." }, { status: 503 })
-      const script = typeof b?.script === "string" ? b.script.replace(/\\([^)]*\\)|\\[[^\\]]*\\]|\\{[^}]*\\}/g, " ").replace(/\\s+/g, " ").trim() : ""
+      const script = typeof b?.script === "string" ? b.script.replace(/\([^)]*\)|\[[^\]]*\]|\{[^}]*\}/g, " ").replace(/[<>*_#`]/g, " ").replace(/[—–]/g, " ").replace(/\s+/g, " ").trim() : ""
       if (!script) return NextResponse.json({ error: "Add the storytelling script first." }, { status: 400 })
       for (const model of ["gemini-2.5-flash-preview-tts", "gemini-2.5-flash-tts"]) {
         try {
