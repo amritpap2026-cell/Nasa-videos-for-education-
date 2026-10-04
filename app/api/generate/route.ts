@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server"
 
 const preferredModels = ["gemini-2.5-flash-lite", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
-const masterPromptUrl = "https://raw.githubusercontent.com/amritpap2026-cell/Nasa-videos-for-education-/main/universal_youtube_master_prompt.txt"
+const masterPromptBranch = process.env.VERCEL_GIT_COMMIT_REF || "main"
+const masterPromptUrl = "https://raw.githubusercontent.com/amritpap2026-cell/Nasa-videos-for-education-/" + encodeURI(masterPromptBranch) + "/universal_youtube_master_prompt.txt"
 
 async function models(key: string) {
   try {
@@ -48,7 +49,14 @@ async function researchSignals(topic: string) {
   const seen = new Set<string>(); return out.filter((x) => { const k = x.title.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true }).slice(0, 18)
 }
 
-async function masterPrompt() { try { const r = await fetch(masterPromptUrl, { cache: "no-store" }); return r.ok ? await r.text() : "" } catch { return "" } }
+async async function masterPrompt() {
+  try {
+    const r = await fetch(masterPromptUrl, { cache: "no-store", signal: AbortSignal.timeout(10000) })
+    return r.ok ? await r.text() : ""
+  } catch {
+    return ""
+  }
+}
 function mins(v: string) { const m = String(v || "").match(/(\d+)\s*[-–]\s*(\d+)/); return m ? Number(m[2]) : Math.max(1, Number(v) || 10) }
 function lang(v: string) { return v === "Hindi" ? "Write all user-facing prose in natural Hindi using Devanagari." : v === "Nepali" ? "Write all user-facing prose in natural Nepali using Devanagari." : "Write all user-facing prose in natural English." }
 
@@ -90,10 +98,13 @@ export async function POST(request: Request) {
     if (mode === "scriptwriter") {
       prompt = "You are the FREE-FORM SCRIPTWRITER for a universal YouTube studio. Topic: " + topic + ". Audience: General public. Language: " + language + ". Runtime: " + minutes + " minutes, about " + minutes * 125 + " spoken words. Current public research signals: " + research + ". Write a complete creative documentary package. Choose the best structure for politics, news, science, geology, technology, economics, history, social experiments, investigations or any other subject. Do not force student/lesson language. Separate facts, reporting, analysis and uncertainty. No invented sources, quotes or statistics. No filler. Use these exact stable headers without numeric identifiers: " + stableHeaders + ". Under FULL WORD-FOR-WORD SCRIPT (STORYTELLING SCRIPT), put only narration between <<<STORYTELLING_SCRIPT_START>>> and <<<STORYTELLING_SCRIPT_END>>>. Complete every header. " + lang(language)
     } else {
-      const master = await masterPrompt(); prompt = "Use the existing authoritative UNIVERSAL AI YOUTUBE PRODUCTION MASTER PROMPT below. Topic: " + topic + ". Audience: General public. Language: " + language + ". Runtime: " + minutes + " minutes. Current public research signals: " + research + ". Keep the master protocol, but remove any NASA/student-only assumptions. Complete the entire package and final audit. IMPORTANT: application identifiers must be header-based, never numeric. Use these exact stable headers: " + stableHeaders + ". The narration belongs only between <<<STORYTELLING_SCRIPT_START>>> and <<<STORYTELLING_SCRIPT_END>>> under FULL WORD-FOR-WORD SCRIPT (STORYTELLING SCRIPT). Never return an incomplete package. " + lang(language) + "\n\nMASTER PROMPT:\n" + master
+      const master = await masterPrompt()
+      if (!master) return NextResponse.json({ error: "The universal_youtube_master_prompt.txt could not be loaded. Please retry after the deployment is ready." }, { status: 503 })
+      prompt = "Use the existing authoritative UNIVERSAL AI YOUTUBE PRODUCTION MASTER PROMPT below. Topic: " + topic + ". Audience: General public. Language: " + language + ". Runtime: " + minutes + " minutes. Current public research signals: " + research + ". Keep the master protocol, but remove any NASA/student-only assumptions. Complete the entire package and final audit. IMPORTANT: application identifiers must be header-based, never numeric. Use these exact stable headers: " + stableHeaders + ". The narration belongs only between <<<STORYTELLING_SCRIPT_START>>> and <<<STORYTELLING_SCRIPT_END>>> under FULL WORD-FOR-WORD SCRIPT (STORYTELLING SCRIPT). Never return an incomplete package. " + lang(language) + "\n\nMASTER PROMPT:\n" + master
     }
-    if (!key) return NextResponse.json({ text: fallback(topic, minutes), model: "fallback", notice: "AI key unavailable." })
+    if (!key) return NextResponse.json({ error: "GEMINI_API_KEY is not configured. Add it in the deployment environment before generating a YouTube package." }, { status: 503 })
     const result = await generate(key, prompt, Math.min(30000, Math.max(9000, minutes * 125 * 2)), mode === "scriptwriter" ? 0.78 : 0.58)
-    return NextResponse.json(result || { text: fallback(topic, minutes), model: "fallback", notice: "AI models were unavailable." })
+    if (!result) return NextResponse.json({ error: "No Gemini text model was available. Please retry or check the Gemini API key and model access." }, { status: 503 })
+    return NextResponse.json(result)
   } catch { return NextResponse.json({ error: "Invalid request. Please try again." }, { status: 400 }) }
 }
