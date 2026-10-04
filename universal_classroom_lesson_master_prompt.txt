@@ -1,0 +1,123 @@
+CLASSROOM LESSON MASTER PROMPT — SECTIONS 1–18 + 25 + SECTION 26 AUDIT
+
+ROLE
+Create a complete teacher-ready NASA/space classroom lesson from ANY topic. This is a teaching package, not a YouTube documentary.
+
+INPUT
+TOPIC: [INSERT TOPIC]
+CLASS: [CLASS 8–10 / CLASS 11–12]
+LANGUAGE: [English / Hindi / Nepali]
+LESSON LENGTH: [ANY LENGTH IN MINUTES]
+LEARNING GOAL: [optional]
+RESOURCES: [optional]
+
+NON-NEGOTIABLE COMPLETION RULE
+1. The requested lesson length controls teacher-script depth, examples, activities, discussion, assessment and timing.
+2. NEVER shorten a lesson because the topic is simple.
+3. NEVER pad with meaningless repetition.
+4. The production package MUST contain SECTION 1 through SECTION 18 in order, followed by SECTION 25.
+5. Do NOT generate Sections 19–24.
+6. SECTION 26 is the machine-gate final audit only.
+7. Do not return an incomplete lesson as complete.
+8. If output limits interrupt generation, continue from the first missing section while preserving completed sections exactly.
+
+DURATION ENGINE
+Teacher narration is approximately 110–125 spoken words/minute, but classroom interaction also consumes time.
+Allocate realistic time for explanation, questions, activity, guided practice and assessment.
+The total scheduled lesson time must equal the requested lesson length.
+SECTION 11 must contain the complete teacher narration/explanation required for the lesson.
+
+ACCURACY
+Prefer NASA, ESA, universities, government agencies, textbooks and peer-reviewed sources. Never invent facts, mission results, statistics, quotes or experiments. Clearly label uncertainty.
+
+LANGUAGE
+Use the selected language throughout. Keep recognized scientific names and units where appropriate.
+
+SECTION 1 — LESSON OVERVIEW
+Topic, class, exact duration, big question, prerequisites and lesson flow.
+
+SECTION 2 — LEARNING OBJECTIVES
+Create measurable knowledge, skill and understanding objectives.
+
+SECTION 3 — PRIOR KNOWLEDGE
+State prerequisite knowledge and misconceptions to check.
+
+SECTION 4 — TEACHER BACKGROUND
+Provide concise, accurate science background and source guidance for the teacher.
+
+SECTION 5 — ENGAGEMENT HOOK
+Create an opening question, observation, demonstration, mystery or prediction activity.
+
+SECTION 6 — CORE EXPLANATION
+Teach the concept step-by-step from simple to complex using age-appropriate language and examples.
+
+SECTION 7 — KEY TERMS
+Provide essential vocabulary with student-friendly definitions and examples.
+
+SECTION 8 — GUIDED EXAMPLES
+Provide worked examples, analogies, demonstrations or visual explanations.
+
+SECTION 9 — NASA / REAL-WORLD CONNECTION
+Connect the lesson to NASA missions, observations, instruments, discoveries or other reliable real-world evidence.
+
+SECTION 10 — VISUAL TEACHING PLAN
+Plan NASA/real visuals, diagrams, simulations and AI visuals when useful. Every visual must support a teaching objective.
+
+SECTION 11 — COMPLETE TEACHER SCRIPT
+Write the complete word-for-word teacher explanation for the full lesson. Include natural questions and transitions, but do not hide missing explanation behind placeholders.
+The script must be long enough for the requested teaching time after accounting for interaction.
+
+SECTION 12 — STUDENT ACTIVITY
+Provide a classroom-ready activity with objective, materials, steps, time, expected observations and safety notes where relevant.
+
+SECTION 13 — GUIDED PRACTICE
+Provide questions/tasks, progression, expected reasoning and teacher prompts.
+
+SECTION 14 — ASSESSMENT
+Provide formative checks and final assessment questions appropriate to the class.
+
+SECTION 15 — ANSWER KEY + MISCONCEPTIONS
+Give correct answers, explanations, common misconceptions and correction strategies.
+
+SECTION 16 — DIFFERENTIATION
+Provide support for struggling learners, language support where appropriate and extension challenges for advanced learners.
+
+SECTION 17 — HOMEWORK / EXTENSION
+Create meaningful follow-up work connected to the learning objective.
+
+SECTION 18 — TEACHER QC
+Check factual accuracy, duration, materials, safety, objective alignment, activity feasibility, assessment coverage and lesson completeness.
+
+SECTION 25 — FINAL PRODUCTION / QC + THUMBNAIL
+Provide final lesson-readiness checks, visual/audio/export guidance where applicable, classroom-use readiness, source/rights reminders and one cover/thumbnail concept.
+Do NOT create Sections 19–24.
+
+SECTION 26 — FINAL COMPLETION AUDIT — MACHINE GATE
+SECTION 26 is ONLY the final audit. It is not a production section.
+
+Audit the COMPLETE lesson against the requested duration and this protocol.
+
+Return:
+FINAL RESULT: PASS or FAIL
+MISSING:
+DUPLICATES:
+WRONG ORDER:
+SCRIPT WORD COUNT:
+REQUESTED LESSON LENGTH:
+PLANNED TOTAL TIME:
+SECTIONS 1–18 COMPLETE: PASS / FAIL
+SECTION 25 COMPLETE: PASS / FAIL
+SECTIONS 19–24 ABSENT: PASS / FAIL
+SECTION 11 SCRIPT COMPLETE: PASS / FAIL
+DURATION CHECK: PASS / FAIL
+ACTIVITY/DISCUSSION TIME REALISTIC: PASS / FAIL
+OBJECTIVES ↔ ASSESSMENT ALIGNMENT: PASS / FAIL
+VISUAL TEACHING PLAN COMPLETE: PASS / FAIL
+ANSWER KEY COMPLETE: PASS / FAIL
+FACTUAL ACCURACY: PASS / FAIL
+NO PLACEHOLDER/SUMMARY SUBSTITUTION: PASS / FAIL
+FAILED CHECKS:
+REPAIR REQUIRED:
+
+FINAL RULE
+Return SECTION 1–18 completely, then SECTION 25 completely. Never generate Sections 19–24. SECTION 26 is the final machine-gate audit.
