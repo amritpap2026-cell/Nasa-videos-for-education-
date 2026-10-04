@@ -37,7 +37,12 @@ export default function CosmosStudio() {
   const [audioUrl, setAudioUrl] = useState("")
   const [voiceoverUsed, setVoiceoverUsed] = useState(false)
   const [storyText, setStoryText] = useState("")
-  const [packageDone, setPackageDone] = useState(false)\n  const [generationMode, setGenerationMode] = useState<"master" | "scriptwriter">("master")\n  const [assetOpen, setAssetOpen] = useState(false)\n  const [assetType, setAssetType] = useState<"image" | "video" | "thumbnail" | "seo">("image")\n  const [assetLoading, setAssetLoading] = useState(false)\n  const [assetText, setAssetText] = useState("")
+  const [packageDone, setPackageDone] = useState(false)
+  const [generationMode, setGenerationMode] = useState<"master" | "scriptwriter">("master")
+  const [assetOpen, setAssetOpen] = useState(false)
+  const [assetType, setAssetType] = useState<"image" | "video" | "thumbnail" | "seo">("image")
+  const [assetLoading, setAssetLoading] = useState(false)
+  const [assetText, setAssetText] = useState("")
 
   // Visuals (Step 3) — independent modal
   const [visualsOpen, setVisualsOpen] = useState(false)
