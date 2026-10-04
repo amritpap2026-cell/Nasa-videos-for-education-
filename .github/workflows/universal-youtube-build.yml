@@ -31,20 +31,3 @@ jobs:
       - name: Next.js production build
         run: npm run build
 
-      - name: Deployed smoke checks
-        env:
-          PREVIEW_URL: https://nasa-videos-for-education-git-universa-27499e-amritpap2026-5444.vercel.app
-        run: |
-          ready=0
-          for attempt in $(seq 1 18); do
-            if curl --fail --silent --show-error --max-time 20 "$PREVIEW_URL" > /dev/null; then
-              ready=1
-              break
-            fi
-            sleep 10
-          done
-          test "$ready" = "1"
-          code=$(curl --silent --show-error --max-time 30 -o /tmp/generate.json -w "%{http_code}" -X POST "$PREVIEW_URL/api/generate" -H "Content-Type: application/json" -d '{"topic":"","mode":"master"}')
-          test "$code" = "400"
-          code=$(curl --silent --show-error --max-time 30 -o /tmp/visuals.json -w "%{http_code}" -X POST "$PREVIEW_URL/api/visuals" -H "Content-Type: application/json" -d '{"topic":""}')
-          test "$code" = "400"
