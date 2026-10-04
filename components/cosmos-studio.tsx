@@ -438,62 +438,28 @@ export default function CosmosStudio() {
             )}
 
             <div className="field">
-              <p className="field-label">Select this package</p>
-              <div className="package-options" role="group" aria-label="Select video package" style={{ display: "grid", gap: 8 }}>
-                <button
-                  type="button"
-                  className={packageType === "youtube" ? "package-option active" : "package-option"}
-                  style={{
-                    textAlign: "left",
-                    padding: "12px 14px",
-                    borderRadius: 10,
-                    border: "1px solid",
-                    borderColor: packageType === "youtube" ? "#16a34a" : "#d7e9e8",
-                    background: packageType === "youtube" ? "#eaf9f0" : "white",
-                  }}
-                  onClick={() => setPackageType("youtube")}
-                >
-                  YouTube package
-                  <span style={{ display: "block", fontSize: 12, opacity: 0.72 }}>Title, description, tags, SEO, script</span>
+              <p className="field-label">Generation method</p>
+              <p className="field-hint">Both modes use the same live research. Master Prompt follows the existing production protocol; Scriptwriter is free-form.</p>
+              <div style={{ display: "grid", gap: 10 }}>
+                <button type="button" onClick={() => setGenerationMode("master")} style={{ textAlign: "left", padding: 14, borderRadius: 10, border: "2px solid #16a34a", background: generationMode === "master" ? "#eaf9f0" : "white" }}>
+                  <strong>Generate with master prompt</strong>
+                  <span style={{ display: "block", fontSize: 12, opacity: 0.72 }}>Research + master protocol + complete audited package</span>
                 </button>
-                <button
-                  type="button"
-                  className={packageType === "lesson" ? "package-option active" : "package-option"}
-                  style={{
-                    textAlign: "left",
-                    padding: "12px 14px",
-                    borderRadius: 10,
-                    border: "1px solid",
-                    borderColor: packageType === "lesson" ? "#16a34a" : "#d7e9e8",
-                    background: packageType === "lesson" ? "#eaf9f0" : "white",
-                  }}
-                  onClick={() => setPackageType("lesson")}
-                >
-                  Classroom lesson
-                  <span style={{ display: "block", fontSize: 12, opacity: 0.72 }}>Simple teaching flow and review questions</span>
-                </button>
-                <button
-                  type="button"
-                  className={packageType === "shorts" ? "package-option active" : "package-option"}
-                  style={{
-                    textAlign: "left",
-                    padding: "12px 14px",
-                    borderRadius: 10,
-                    border: "1px solid",
-                    borderColor: packageType === "shorts" ? "#16a34a" : "#d7e9e8",
-                    background: packageType === "shorts" ? "#eaf9f0" : "white",
-                  }}
-                  onClick={() => setPackageType("shorts")}
-                >
-                  Short video
-                  <span style={{ display: "block", fontSize: 12, opacity: 0.72 }}>Fast hook and concise narration</span>
+                <button type="button" onClick={() => setGenerationMode("scriptwriter")} style={{ textAlign: "left", padding: 14, borderRadius: 10, border: "2px solid #2563eb", background: generationMode === "scriptwriter" ? "#eff6ff" : "white" }}>
+                  <strong>Generate with scriptwriter</strong>
+                  <span style={{ display: "block", fontSize: 12, opacity: 0.72 }}>Research + creative documentary writing for any topic and runtime</span>
                 </button>
               </div>
-            </div>
+            </div>/div>
 
-            <button className="generate" onClick={generate} disabled={loading || topic.trim().length < 3}>
-              {loading ? "Generating your package..." : "Generate YouTube package"}
-            </button>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <button className="generate" onClick={() => generate("master")} disabled={loading || topic.trim().length < 3}>
+                {loading && generationMode === "master" ? "Generating..." : "Generate with master prompt"}
+              </button>
+              <button className="generate" onClick={() => generate("scriptwriter")} disabled={loading || topic.trim().length < 3}>
+                {loading && generationMode === "scriptwriter" ? "Generating..." : "Generate with scriptwriter"}
+              </button>
+            </div>
 
             {status && (
               <p className="status" role="status">
