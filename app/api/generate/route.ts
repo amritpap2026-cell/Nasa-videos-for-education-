@@ -49,7 +49,7 @@ async function researchSignals(topic: string) {
   const seen = new Set<string>(); return out.filter((x) => { const k = x.title.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true }).slice(0, 18)
 }
 
-async async function masterPrompt() {
+async function masterPrompt() {
   try {
     const r = await fetch(masterPromptUrl, { cache: "no-store", signal: AbortSignal.timeout(10000) })
     return r.ok ? await r.text() : ""
