@@ -34,9 +34,9 @@ async function researchSignals(topic: string) {
   for (const url of ["https://news.google.com/rss/search?q=" + q + "&hl=en-US&gl=US&ceid=US:en", "https://news.google.com/rss/search?q=" + q + "%20when:30d&hl=en-US&gl=US&ceid=US:en"]) {
     try {
       const xml = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(10000) }).then((r) => r.text())
-      for (const item of [...xml.matchAll(/<item>([\\s\\S]*?)<\\/item>/g)].slice(0, 10)) {
-        const title = item[1].match(/<title>([\\s\\S]*?)<\\/title>/)?.[1]?.replace(/<!\\[CDATA\\[|\\]\\]>/g, "").trim()
-        const link = item[1].match(/<link>([\\s\\S]*?)<\\/link>/)?.[1]?.trim() || ""
+      for (const item of [...xml.matchAll(/<item>([\s\S]*?)<\/item>/g)].slice(0, 10)) {
+        const title = item[1].match(/<title>([\s\S]*?)<\/title>/)?.[1]?.replace(/<!\[CDATA\[|\]\]>/g, "").trim()
+        const link = item[1].match(/<link>([\s\S]*?)<\/link>/)?.[1]?.trim() || ""
         if (title) out.push({ source: "Google News RSS", title, url: link })
       }
     } catch {}
@@ -49,7 +49,7 @@ async function researchSignals(topic: string) {
 }
 
 async function masterPrompt() { try { const r = await fetch(masterPromptUrl, { cache: "no-store" }); return r.ok ? await r.text() : "" } catch { return "" } }
-function mins(v: string) { const m = String(v || "").match(/(\\d+)\\s*[-–]\\s*(\\d+)/); return m ? Number(m[2]) : Math.max(1, Number(v) || 10) }
+function mins(v: string) { const m = String(v || "").match(/(\d+)\s*[-–]\s*(\d+)/); return m ? Number(m[2]) : Math.max(1, Number(v) || 10) }
 function lang(v: string) { return v === "Hindi" ? "Write all user-facing prose in natural Hindi using Devanagari." : v === "Nepali" ? "Write all user-facing prose in natural Nepali using Devanagari." : "Write all user-facing prose in natural English." }
 
 const stableHeaders = "RESEARCH BRIEF;STORY ANGLE;VIDEO PROMISE + AUDIENCE;FORMAT + DURATION PLAN;STORY ARCHITECTURE;RETENTION MAP;COMPLETE SCRIPT PLAN;FACT-CHECK + SOURCE MAP;PRODUCTION MANIFEST;FULL WORD-FOR-WORD SCRIPT (STORYTELLING SCRIPT);COMPLETE TIMESTAMPED STORYBOARD / FINAL TIMELINE;AI IMAGE GENERATION PROMPTS;AI VIDEO GENERATION PROMPTS;REAL / ARCHIVAL / STOCK FOOTAGE PLAN;MOTION GRAPHICS + DATA VISUALIZATION;ON-SCREEN TEXT + SUBTITLES;VOICEOVER DIRECTION;MUSIC + SOUND DESIGN;EDITING + COLOR BLUEPRINT;TITLE + SEO PACKAGE;DESCRIPTION + CHAPTERS + PINNED COMMENT;YOUTUBE SHORTS REPURPOSING;FINAL PRODUCTION / PUBLISHING / QC PLAN;THUMBNAIL CONCEPTS;FINAL COMPLETION AUDIT"
