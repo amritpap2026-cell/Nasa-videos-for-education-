@@ -1,0 +1,112 @@
+YOUTUBE SHORTS MASTER PROMPT — SECTIONS 1–15 + 25 + SECTION 26 AUDIT
+
+ROLE
+Create an independent short-form educational video package from ANY topic. This is not the long YouTube documentary protocol and not a classroom lesson.
+
+INPUT
+TOPIC: [INSERT TOPIC]
+TARGET LENGTH: [ANY SHORT LENGTH IN SECONDS]
+LANGUAGE: [English / Hindi / Nepali]
+AUDIENCE: [optional]
+
+NON-NEGOTIABLE COMPLETION RULE
+1. The requested seconds control narration, pacing, shot count, captions and all other assets.
+2. NEVER pad with filler.
+3. NEVER stop early.
+4. The production package MUST contain SECTION 1 through SECTION 15 in order, followed by SECTION 25.
+5. Do NOT generate Sections 16–24.
+6. SECTION 26 is the machine-gate final audit only.
+7. Do not return an incomplete Short as complete.
+8. If output limits interrupt generation, continue from the first missing section while preserving completed sections exactly.
+
+DURATION ENGINE
+Write for the exact requested duration using roughly 140–170 spoken words/minute, adjusted for pauses and natural delivery.
+All timestamps must fit inside the requested duration.
+One Short = one strong idea, not a compressed documentary.
+
+ACCURACY
+Use authoritative sources. Never invent facts. Clearly distinguish uncertainty. Do not imply NASA endorsement.
+
+LANGUAGE
+Use the selected language throughout.
+
+SECTION 1 — SHORT CONCEPT
+Define one clear educational idea and why it is worth watching.
+
+SECTION 2 — HOOK
+Design the first 1–2 seconds to create immediate curiosity without misleading the viewer.
+
+SECTION 3 — CURIOSITY GAP
+Define the question/information gap that keeps viewers watching and where it will be resolved.
+
+SECTION 4 — FACT / CLAIM MAP
+List the claims used, their sources, confidence and any uncertainty.
+
+SECTION 5 — COMPLETE WORD-FOR-WORD SCRIPT
+Write the complete narration for the entire requested duration. No placeholders. It must have a beginning, development and satisfying ending.
+
+SECTION 6 — TIMESTAMPED SHOT PLAN
+Create the complete timeline from 00:00 to the requested end. For every shot provide timestamp, duration, narration range, visual, camera/composition, transition and source type.
+
+SECTION 7 — NASA / REAL FOOTAGE PLAN
+Specify ideal real footage, search terms, preferred source and rights considerations.
+
+SECTION 8 — AI IMAGE PROMPTS
+Create production-ready still-image prompts for scenes that need them.
+
+SECTION 9 — AI VIDEO PROMPTS
+Create production-ready motion prompts for scenes that need generated video.
+
+SECTION 10 — CAPTIONS
+Create concise, mobile-first captions matched to the timeline. Keep them readable and synchronized.
+
+SECTION 11 — SFX + MUSIC
+Create a timestamped audio plan for music, SFX and intentional silence.
+
+SECTION 12 — EDITING PLAN
+Specify cuts, pacing, transitions, pattern interrupts, text animation and visual changes.
+
+SECTION 13 — SHORT TITLE + DESCRIPTION + HASHTAGS
+Create platform-ready metadata that accurately represents the Short.
+
+SECTION 14 — THUMBNAIL / COVER CONCEPT
+Provide subject, composition, lighting, 0–4 word text and an AI image prompt.
+
+SECTION 15 — QC
+Check exact duration, factual accuracy, hook strength, caption readability, visual changes, audio clarity, mobile presentation and overall completion.
+
+SECTION 25 — FINAL PRODUCTION / QC + THUMBNAIL
+Provide final export/readiness checks, factual/timing verification, mobile presentation, publishing checks and one final cover/thumbnail concept.
+Do NOT create Sections 16–24.
+
+SECTION 26 — FINAL COMPLETION AUDIT — MACHINE GATE
+SECTION 26 is ONLY the final audit. It is not a production section.
+
+Audit the COMPLETE Short against the requested seconds and this protocol.
+
+Return:
+FINAL RESULT: PASS or FAIL
+MISSING:
+DUPLICATES:
+WRONG ORDER:
+SCRIPT WORD COUNT:
+REQUESTED SECONDS:
+PLANNED END TIME:
+SECTIONS 1–15 COMPLETE: PASS / FAIL
+SECTION 25 COMPLETE: PASS / FAIL
+SECTIONS 16–24 ABSENT: PASS / FAIL
+SECTION 5 SCRIPT COMPLETE: PASS / FAIL
+DURATION CHECK: PASS / FAIL
+SECTION 6 TIMELINE CHECK: PASS / FAIL
+SCRIPT ↔ TIMELINE ALIGNMENT: PASS / FAIL
+SECTION 8 AI IMAGE PROMPTS: PASS / FAIL
+SECTION 9 AI VIDEO PROMPTS: PASS / FAIL
+THUMBNAIL/COVER CHECK: PASS / FAIL
+NO FILLER/PLACEHOLDERS: PASS / FAIL
+FACTUAL ACCURACY: PASS / FAIL
+MOBILE READABILITY: PASS / FAIL
+FAILED CHECKS:
+REPAIR REQUIRED:
+
+FINAL RULE
+Return SECTION 1–15 completely, then SECTION 25 completely. Never generate Sections 16–24. SECTION 26 is the final machine-gate audit.
