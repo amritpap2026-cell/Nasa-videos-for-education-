@@ -108,7 +108,7 @@ export default function CosmosStudio() {
     }
   }
 
-  function extractPart11(packageText: string) {
+  function extractStorytellingScript(packageText: string) {
     if (!packageText.trim()) return ""
     const text = packageText.replace(/\r\n/g, "\n").replace(/\r/g, "\n")
 
@@ -142,8 +142,9 @@ export default function CosmosStudio() {
       )
     }
 
-    // Prefer the line that is specifically Part 11 of (STORYTELLING SCRIPT)
-    let start = lines.findIndex((line) => /\(STORYTELLING SCRIPT\)/i.test(line) && line.trim().length < 220)
+    // Prefer the stable header; numeric Part/Step labels are only a legacy fallback.
+    let start = lines.findIndex((line) => /FULL WORD-FOR-WORD SCRIPT \(STORYTELLING SCRIPT\)/i.test(line) && line.trim().length < 220)
+    if (start < 0) start = lines.findIndex((line) => /\(STORYTELLING SCRIPT\)/i.test(line) && line.trim().length < 220)
     if (start < 0) start = lines.findIndex(headingTest)
     if (start < 0) return ""
 
@@ -152,15 +153,15 @@ export default function CosmosStudio() {
     return body.replace(/^\n+/, "").replace(/\s+$/, "")
   }
 
-  function extractPart11ToStoryWindow() {
+  function extractStorytellingToStoryWindow() {
     const packageText = result?.text || ""
     const script = extractStorytellingScript(packageText)
     if (!script) {
-      setStatus("Could not find FULL WORD-FOR-WORD SCRIPT (STORYTELLING SCRIPT) in the first window. Look for a heading that contains (STORYTELLING SCRIPT), then Part 12 below it.")
+      setStatus("Could not find FULL WORD-FOR-WORD SCRIPT (STORYTELLING SCRIPT) in the generated package.")
       return
     }
     setStoryText(script)
-    setStatus("Part 11 (STORYTELLING SCRIPT) copied identically into the second window.")
+    setStatus("The complete storytelling script was extracted into the second window.")
   }
 
   async function generateVoiceover() {
@@ -331,7 +332,7 @@ export default function CosmosStudio() {
           <span className="step-number">03</span>
           <Sparkles className="icon" />
           <h3>Visuals</h3>
-          <p>Search NASA footage first, then use Pexels when NASA has no match.</p>
+          <p>Search relevant real/archival/stock visuals, with NASA available as a specialist source.</p>
           <button className="workflow-button" type="button" onClick={openVisuals}>
             <span className="workflow-pending">
               <Film size={14} /> Open visuals
@@ -359,8 +360,8 @@ export default function CosmosStudio() {
             <div className="modal-head">
               <div>
                 <div className="modal-kicker">Step 1 of 3</div>
-                <h2 id="creator-title">Create your lesson</h2>
-                <p className="muted">Set the basics first. You can edit the generated story before creating audio.</p>
+                <h2 id="creator-title">Create your YouTube video</h2>
+                <p className="muted">Set the topic, audience and runtime. You can edit the generated package before creating audio.</p>
               </div>
               <button className="close" aria-label="Close creator" onClick={() => setOpen(false)}>
                 <X size={18} />
@@ -503,7 +504,7 @@ export default function CosmosStudio() {
                   <button
                     className="secondary voice-play"
                     type="button"
-                    onClick={extractPart11ToStoryWindow}
+                    onClick={extractStorytellingToStoryWindow}
                     style={{ marginTop: 10 }}
                   >
                     Extract Part 11
@@ -514,7 +515,7 @@ export default function CosmosStudio() {
                     style={{ minHeight: 360, width: "100%", resize: "vertical", marginTop: 10 }}
                     value={storyText}
                     onChange={(e) => setStoryText(e.target.value)}
-                    placeholder="Blank until you extract Part 11 from the YouTube package above."
+                    placeholder="Blank until you extract the storytelling script from the YouTube package above."
                     aria-describedby="story-window-help"
                   />
                   <span id="story-window-help" className="sr-only">
@@ -679,9 +680,9 @@ export default function CosmosStudio() {
             <div className="modal-head">
               <div>
                 <div className="modal-kicker">Step 3 of 3 · Visuals</div>
-                <h2 id="visuals-title">Find NASA & stock footage</h2>
+                <h2 id="visuals-title">Find real & stock footage</h2>
                 <p className="muted">
-                  Search the NASA Image and Video Library first. If nothing matches, Pexels is used as a fallback.
+                  Search the NASA Image and Video Library when relevant; use Pexels as a stock fallback when configured.
                 </p>
               </div>
               <button className="close" aria-label="Close visuals" onClick={() => setVisualsOpen(false)}>
