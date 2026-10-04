@@ -417,11 +417,13 @@ export default function CosmosStudio() {
             <div className="field">
               <label htmlFor="length">Video length (minutes)</label>
               <select id="length" value={length} onChange={(e) => setLength(e.target.value)}>
-                <option value="0-5">0–5</option>
-                <option value="0-10">0–10</option>
-                <option value="0-15">0–15</option>
-                <option value="0-30">0–30</option>
-                <option value="0-60">0–60</option>
+                <option value="5">5</option>
+                <option value="10">10</option>
+                <option value="15">15</option>
+                <option value="30">30</option>
+                <option value="60">60</option>
+                <option value="90">90</option>
+                <option value="120">120</option>
               </select>
             </div>
 
@@ -450,7 +452,7 @@ export default function CosmosStudio() {
                   <span style={{ display: "block", fontSize: 12, opacity: 0.72 }}>Research + creative documentary writing for any topic and runtime</span>
                 </button>
               </div>
-            </div>/div>
+            </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
               <button className="generate" onClick={() => generate("master")} disabled={loading || topic.trim().length < 3}>
