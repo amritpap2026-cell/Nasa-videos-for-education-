@@ -82,7 +82,16 @@ export default function CosmosStudio() {
         body: JSON.stringify({ topic, language, length, mode }),
       })
       const data = await response.json()
-      if (!response.ok) throw new Error(data.error || "Generation failed")
+      if (!response.ok) {
+        const rawError = data?.error
+        const message =
+          typeof rawError === "string"
+            ? rawError
+            : rawError?.message || rawError?.detail || rawError?.code
+              ? [rawError.message, rawError.detail, rawError.code].filter(Boolean).join(" — ")
+              : "Generation failed. Please try again."
+        throw new Error(message)
+      }
       setResult(data)
       setStoryText("")
     } catch (error) {

@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server"
 
+export const maxDuration = 300
+
 const preferredModels = ["gemini-2.5-flash-lite", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
 const masterPromptBranch = process.env.VERCEL_GIT_COMMIT_REF || "main"
 const masterPromptUrl = "https://raw.githubusercontent.com/amritpap2026-cell/Nasa-videos-for-education-/" + encodeURI(masterPromptBranch) + "/universal_youtube_master_prompt.txt"
@@ -60,7 +62,14 @@ async function callPythonPipeline(request: Request, topic: string, language: str
   });
   const data = await r.json().catch(() => ({}));
   if (!r.ok || !data?.ok) {
-    throw new Error(data?.detail || data?.error || "Python researcher/scriptwriter pipeline failed.");
+    const error = data?.detail || data?.error;
+    const message =
+      typeof error === "string"
+        ? error
+        : error?.message || error?.detail || error?.code
+          ? [error.message, error.detail, error.code].filter(Boolean).join(" — ")
+          : "Python researcher/scriptwriter pipeline failed.";
+    throw new Error(message);
   }
   return data;
 }
