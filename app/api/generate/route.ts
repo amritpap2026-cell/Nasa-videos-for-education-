@@ -53,12 +53,15 @@ async function researchSignals(topic: string) {
 
 async function callPythonPipeline(request: Request, topic: string, language: string, minutes: number) {
   const url = new URL("/api/agents", request.url);
+  const incomingCookie = request.headers.get("cookie") || "";
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (incomingCookie) headers.cookie = incomingCookie;
   const r = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     cache: "no-store",
     body: JSON.stringify({ topic, language, audience: "General public", minutes }),
-    signal: AbortSignal.timeout(150000),
+    signal: AbortSignal.timeout(280000),
   });
   const data = await r.json().catch(() => ({}));
   if (!r.ok || !data?.ok) {
