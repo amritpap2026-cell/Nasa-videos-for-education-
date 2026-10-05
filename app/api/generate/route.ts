@@ -49,6 +49,22 @@ async function researchSignals(topic: string) {
   const seen = new Set<string>(); return out.filter((x) => { const k = x.title.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true }).slice(0, 18)
 }
 
+async function callPythonPipeline(request: Request, topic: string, language: string, minutes: number) {
+  const url = new URL("/api/agents", request.url);
+  const r = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    cache: "no-store",
+    body: JSON.stringify({ topic, language, audience: "General public", minutes }),
+    signal: AbortSignal.timeout(150000),
+  });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok || !data?.ok) {
+    throw new Error(data?.detail || data?.error || "Python researcher/scriptwriter pipeline failed.");
+  }
+  return data;
+}
+
 async function masterPrompt() {
   try {
     const r = await fetch(masterPromptUrl, { cache: "no-store", signal: AbortSignal.timeout(10000) })
@@ -94,17 +110,57 @@ export async function POST(request: Request) {
       const result = key ? await generate(key, p, 5000, 0.72) : null
       return NextResponse.json(result || { text: type + "\nCreate production-ready assets for " + topic + ".", model: "fallback" })
     }
-    const minutes = mins(b.length); const signals = await researchSignals(topic); const research = JSON.stringify(signals); let prompt = ""
+    const minutes = mins(b.length)
+    let pipeline: any
+    try {
+      // Both generation buttons MUST pass through the real Python agents first.
+      pipeline = await callPythonPipeline(request, topic, language, minutes)
+    } catch (error) {
+      return NextResponse.json({
+        error: error instanceof Error ? error.message : "Python research/scriptwriter pipeline failed.",
+        pipeline: "researcher.py -> scriptwriter.py",
+      }, { status: 503 })
+    }
+
+    const research = JSON.stringify(pipeline.research, null, 2)
+    const scriptDraft = JSON.stringify(pipeline.script, null, 2)
+    let prompt = ""
+
     if (mode === "scriptwriter") {
-      prompt = "You are the FREE-FORM SCRIPTWRITER for a universal YouTube studio. Topic: " + topic + ". Audience: General public. Language: " + language + ". Runtime: " + minutes + " minutes, about " + minutes * 125 + " spoken words. Current public research signals: " + research + ". Write a complete creative documentary package. Choose the best structure for politics, news, science, geology, technology, economics, history, social experiments, investigations or any other subject. Do not force student/lesson language. Separate facts, reporting, analysis and uncertainty. No invented sources, quotes or statistics. No filler. Use these exact stable headers without numeric identifiers: " + stableHeaders + ". Under FULL WORD-FOR-WORD SCRIPT (STORYTELLING SCRIPT), put only narration between <<<STORYTELLING_SCRIPT_START>>> and <<<STORYTELLING_SCRIPT_END>>>. Complete every header. " + lang(language)
+      prompt = "You are the FREE-FORM SCRIPTWRITER production engine for a universal YouTube studio. " +
+        "The Python researcher.py and scriptwriter.py have ALREADY run successfully. Do not ignore or replace their work. " +
+        "Use their research dossier as the factual foundation and their scriptwriter draft as the creative foundation. " +
+        "Now turn that foundation into a COMPLETE, latest, production-ready YouTube package for the requested runtime. " +
+        "You have complete creative freedom over structure: choose whatever sections, pacing, storytelling devices and script form best fit the subject. " +
+        "A politics story can be an investigation; a science story can be an explainer; history can be a narrative documentary; technology can be a comparison or investigation; " +
+        "and any other field may use whatever structure makes the strongest video. Do not force the 26-section master protocol. " +
+        "For current/trending subjects, preserve the research date/context and distinguish verified facts, reporting, analysis, disputed claims and uncertainty. " +
+        "Never invent sources, quotes, statistics or events. Do not use filler to hit duration. Longer videos must add evidence, examples, context, consequences and narrative development. " +
+        "Include all production material actually needed for this video: complete word-for-word narration, timeline/storyboard, visuals, AI image prompts, AI video prompts, real/archival/stock plan, graphics, subtitles, voiceover direction, sound, editing, titles, description, chapters, SEO keywords, tags, Shorts and thumbnail concepts. " +
+        "The common application workspace will extract AI IMAGE GENERATION PROMPTS, AI VIDEO GENERATION PROMPTS, THUMBNAIL CONCEPTS, and SEO/TAGS from your result. " +
+        "Do not use numeric part identifiers as machine identifiers. " +
+        "Return the complete package, not an outline or summary. " +
+        lang(language) + "\n\nRESEARCH DOSSIER FROM researcher.py:\n" + research +
+        "\n\nCREATIVE SCRIPT DRAFT FROM scriptwriter.py:\n" + scriptDraft
     } else {
       const master = await masterPrompt()
       if (!master) return NextResponse.json({ error: "The universal_youtube_master_prompt.txt could not be loaded. Please retry after the deployment is ready." }, { status: 503 })
-      prompt = "Use the existing authoritative UNIVERSAL AI YOUTUBE PRODUCTION MASTER PROMPT below. Topic: " + topic + ". Audience: General public. Language: " + language + ". Runtime: " + minutes + " minutes. Current public research signals: " + research + ". Keep the master protocol, but remove any NASA/student-only assumptions. Complete the entire package and final audit. IMPORTANT: application identifiers must be header-based, never numeric. Use these exact stable headers: " + stableHeaders + ". The narration belongs only between <<<STORYTELLING_SCRIPT_START>>> and <<<STORYTELLING_SCRIPT_END>>> under FULL WORD-FOR-WORD SCRIPT (STORYTELLING SCRIPT). Never return an incomplete package. " + lang(language) + "\n\nMASTER PROMPT:\n" + master
+      prompt = "Use the authoritative UNIVERSAL AI YOUTUBE PRODUCTION MASTER PROMPT below as the final package protocol. " +
+        "The Python researcher.py and scriptwriter.py have ALREADY run successfully. Use their research dossier and scriptwriter draft as inputs; do not skip the Python pipeline. " +
+        "Follow the master protocol completely and produce the entire structured package for the requested runtime. " +
+        "Keep the stable named headers used by the application and never depend on numeric part/section identifiers. " +
+        "For current/trending topics, use the supplied current research and clearly separate verified facts, reporting, analysis, disputed claims and uncertainty. " +
+        "Do not invent facts, statistics, quotes, sources or dates. " +
+        "The narration belongs only between <<<STORYTELLING_SCRIPT_START>>> and <<<STORYTELLING_SCRIPT_END>>> under FULL WORD-FOR-WORD SCRIPT (STORYTELLING SCRIPT). " +
+        "Complete every required master section and the final completion audit. " +
+        lang(language) + "\n\nRESEARCH DOSSIER FROM researcher.py:\n" + research +
+        "\n\nSCRIPTWRITER DRAFT FROM scriptwriter.py:\n" + scriptDraft +
+        "\n\nMASTER PROMPT:\n" + master
     }
+
     if (!key) return NextResponse.json({ error: "GEMINI_API_KEY is not configured. Add it in the deployment environment before generating a YouTube package." }, { status: 503 })
     const result = await generate(key, prompt, Math.min(30000, Math.max(9000, minutes * 125 * 2)), mode === "scriptwriter" ? 0.78 : 0.58)
     if (!result) return NextResponse.json({ error: "No Gemini text model was available. Please retry or check the Gemini API key and model access." }, { status: 503 })
-    return NextResponse.json(result)
+    return NextResponse.json({ ...result, pipeline: "researcher.py -> scriptwriter.py -> " + (mode === "master" ? "master prompt" : "scriptwriter production engine") })
   } catch { return NextResponse.json({ error: "Invalid request. Please try again." }, { status: 400 }) }
 }
