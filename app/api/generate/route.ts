@@ -100,16 +100,44 @@ export async function POST(request: Request) {
     if (mode !== "voiceover" && topic.length < 3) return NextResponse.json({ error: "Please enter a topic with at least 3 characters." }, { status: 400 })
     if (mode === "voiceover") {
       if (!key) return NextResponse.json({ error: "GEMINI_API_KEY is not configured for voiceover." }, { status: 503 })
-      const script = typeof b?.script === "string" ? b.script.replace(/\([^)]*\)|\[[^\]]*\]|\{[^}]*\}/g, " ").replace(/[<>*_#`]/g, " ").replace(/[—–]/g, " ").replace(/\s+/g, " ").trim() : ""
+      const script = typeof b?.script === "string"
+        ? b.script.replace(/\([^)]*\)|\[[^\]]*\]|\{[^}]*\}/g, " ").replace(/\s*[—–-]\s*/g, " ").replace(/[<>*_#`]/g, " ").replace(/\s+/g, " ").trim()
+        : ""
+      const voice = typeof b?.voice === "string" ? b.voice : "Kore"
       if (!script) return NextResponse.json({ error: "Add the storytelling script first." }, { status: 400 })
-      for (const model of ["gemini-2.5-flash-preview-tts", "gemini-2.5-flash-tts"]) {
+
+      // Preserve the proven Gemini TTS engine: explicit TTS models first,
+      // then any TTS-capable Gemini models returned by the model list.
+      const available = await models(key)
+      const voiceModels = ["gemini-2.5-flash-preview-tts", "gemini-2.5-flash-tts", ...available.filter((model: string) => model.includes("tts"))]
+
+      for (const model of [...new Set(voiceModels)]) {
         try {
-          const r = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent?key=" + encodeURIComponent(key), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contents: [{ parts: [{ text: "Read only the following storytelling narration. Do not speak headings, labels, timestamps or production notes. Language: " + language + ". Narration:\n\n" + script }] }], generationConfig: { responseModalities: ["AUDIO"], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: b.voice || "Kore" } } } } }), signal: AbortSignal.timeout(45000) })
-          if (!r.ok) continue; const d = await r.json(); const audio = d?.candidates?.[0]?.content?.parts?.find((p: any) => p.inlineData?.data)?.inlineData
+          const r = await fetch(
+            "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent?key=" + encodeURIComponent(key),
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                contents: [{ parts: [{ text: "Read only the following storytelling narration. Do not speak headings, labels, timestamps or production notes. Language: " + language + ". Narration:\n\n" + script }] }],
+                generationConfig: {
+                  responseModalities: ["AUDIO"],
+                  speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } },
+                },
+              }),
+              signal: AbortSignal.timeout(45000),
+            } as any,
+          )
+          if (!r.ok) continue
+          const d = await r.json()
+          const audio = d?.candidates?.[0]?.content?.parts?.find((p: any) => p.inlineData?.data)?.inlineData
           if (audio?.data) return NextResponse.json({ audio: audio.data, mimeType: audio.mimeType || "audio/wav", model })
-        } catch {}
+        } catch {
+          // Try the next available Gemini TTS model.
+        }
       }
-      return NextResponse.json({ error: "No Gemini TTS model is currently available." }, { status: 503 })
+
+      return NextResponse.json({ error: "No Gemini TTS model is currently available. Please retry; your storytelling script was preserved." }, { status: 503 })
     }
     if (mode === "brainstorm") {
       const signals = await researchSignals(topic); const result = key ? await generate(key, "Create 8 accurate curiosity-driven YouTube topics for a general audience from this seed: " + topic + ". Current signals: " + JSON.stringify(signals), 900, 0.9) : null
