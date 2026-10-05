@@ -118,13 +118,13 @@ export async function POST(request: Request) {
             {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: {
+              body: JSON.stringify({
                 contents: [{ parts: [{ text: "Read only the following storytelling narration. Do not speak headings, labels, timestamps or production notes. Language: " + language + ". Narration:\n\n" + script }] }],
                 generationConfig: {
                   responseModalities: ["AUDIO"],
                   speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } },
                 },
-              },
+              }),
               signal: AbortSignal.timeout(45000),
             } as any,
           )
