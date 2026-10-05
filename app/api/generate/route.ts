@@ -106,7 +106,13 @@ export async function POST(request: Request) {
     }
     if (mode === "asset-prompt" || mode === "seo") {
       const type = b.assetType === "video" ? "AI VIDEO GENERATION PROMPTS" : b.assetType === "thumbnail" ? "THUMBNAIL CONCEPTS" : "AI IMAGE GENERATION PROMPTS"
-      const p = mode === "seo" ? "Create a complete YouTube metadata package using exact headers TITLE + SEO PACKAGE and DESCRIPTION + CHAPTERS + PINNED COMMENT. Include 20 accurate titles, keywords, tags, description, chapters and pinned comment. Topic: " + topic + ". " + lang(language) : "Create 8 production-ready " + type + " for topic: " + topic + ". Include specific subject, composition, lighting, camera/motion, continuity, 16:9, realism and negative constraints. For thumbnails include 0-4 word text and strong contrast. " + lang(language)
+      const packageContext = typeof b?.package === "string" && b.package.trim() ? "\n\nUSE THIS GENERATED VIDEO PACKAGE AS THE SOURCE OF TRUTH:\n" + b.package.slice(0, 50000) : ""
+      const modeContext = b?.generationMode === "scriptwriter"
+        ? "This package came from the free-form Scriptwriter engine. Preserve its chosen creative structure and topic-specific visual language."
+        : "This package came from the Master Prompt engine. Respect its production manifest and named package structure."
+      const p = mode === "seo"
+        ? "Create the final SEO + tags workspace output for this exact generated video. Include 20 accurate title options, primary/secondary/long-tail keywords, tags, a complete description, chapters based on the package timeline, and a pinned comment. Do not invent facts. " + modeContext + ". Topic: " + topic + ". " + lang(language) + packageContext
+        : "Create the final " + type + " workspace output for this exact generated video. Read the generated package first and derive assets from its actual scenes, story angle, production manifest and timeline. Do not make generic assets from the topic alone. Include specific subject, environment, composition, framing, lighting, camera/motion, continuity, factual/physical accuracy, 16:9 suitability and negative constraints. For thumbnails include 0-4 word text and strong contrast. " + modeContext + ". Topic: " + topic + ". " + lang(language) + packageContext
       const result = key ? await generate(key, p, 5000, 0.72) : null
       return NextResponse.json(result || { text: type + "\nCreate production-ready assets for " + topic + ".", model: "fallback" })
     }
