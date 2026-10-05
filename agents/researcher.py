@@ -1,160 +1,171 @@
-"""Stage 1: live topic research and structured education briefs.
+"""Universal live research agent for any YouTube topic.
 
-Uses Gemini for topic analysis and public search feeds for current signals. If an
-external service is unavailable, the brief still returns a useful local result.
+The researcher is deliberately topic-agnostic. It gathers current public signals and lets
+the language model choose appropriate source types instead of assuming NASA, students, or
+science. The returned dossier is shared by both the strict master-prompt writer and the
+free-form scriptwriter.
 """
 from __future__ import annotations
 
-import argparse
-import json
-import os
-import re
-import urllib.parse
-import urllib.request
+import argparse, json, os, re, urllib.parse, urllib.request
 from dataclasses import asdict, dataclass
 from typing import Any
-
 from config1 import GEMINI_API_URL, candidates
 
 GEMINI_MODELS = candidates("research")
 GEMINI_URL = GEMINI_API_URL
 
+
 @dataclass
-class ResearchBrief:
+class ResearchDossier:
     topic: str
-    audience: str
     language: str
+    audience: str
     research_status: str
     current_search_signals: list[dict[str, str]]
-    why_trending: list[str]
-    learning_goals: list[str]
-    sections: list[str]
-    image_queries: list[str]
-    seo_keywords: list[str]
+    key_claims: list[str]
+    verified_facts: list[str]
+    uncertainties: list[str]
+    important_people: list[str]
+    organizations: list[str]
+    statistics: list[str]
+    counterpoints: list[str]
+    timeline: list[str]
     source_notes: list[str]
+    image_queries: list[str]
+    video_queries: list[str]
+    seo_keywords: list[str]
 
 
-def _fetch_json(url: str, timeout: int = 8) -> dict[str, Any]:
-    request = urllib.request.Request(url, headers={"User-Agent": "Cosmos-Education-Research/1.0"})
-    with urllib.request.urlopen(request, timeout=timeout) as response:
-        return json.loads(response.read().decode("utf-8"))
-
-
-def _fetch_text(url: str, timeout: int = 8) -> str:
-    request = urllib.request.Request(url, headers={"User-Agent": "Cosmos-Education-Research/1.0"})
+def _fetch_text(url: str, timeout: int = 10) -> str:
+    request = urllib.request.Request(url, headers={"User-Agent": "Cosmos-Universal-Research/2.0"})
     with urllib.request.urlopen(request, timeout=timeout) as response:
         return response.read().decode("utf-8", errors="replace")
 
 
-def search_current_signals(topic: str, limit: int = 8) -> list[dict[str, str]]:
-    """Collect current public search signals without scraping search-result pages."""
+def search_current_signals(topic: str, limit: int = 12) -> list[dict[str, str]]:
+    """Collect current public signals without assuming a NASA-only subject."""
     query = urllib.parse.quote(topic)
     signals: list[dict[str, str]] = []
+    feeds = [
+        ("Google News RSS", f"https://news.google.com/rss/search?q={query}&hl=en-US&gl=US&ceid=US:en"),
+        ("Google News RSS recent", f"https://news.google.com/rss/search?q={query}%20when:30d&hl=en-US&gl=US&ceid=US:en"),
+    ]
+    for source, url in feeds:
+        try:
+            xml = _fetch_text(url)
+            for item in re.findall(r"<item>(.*?)</item>", xml, flags=re.S)[:limit]:
+                title = re.search(r"<title>(.*?)</title>", item, flags=re.S)
+                link = re.search(r"<link>(.*?)</link>", item, flags=re.S)
+                if title:
+                    clean = re.sub(r"<[^>]+>", "", title.group(1))
+                    clean = re.sub(r"<!\[CDATA\[|\]\]>", "", clean).strip()
+                    signals.append({"source": source, "title": clean, "url": link.group(1).strip() if link else ""})
+        except Exception:
+            continue
+
+    # NASA is an optional source, not the identity of the researcher.
     try:
-        nasa = _fetch_json(f"https://images-api.nasa.gov/search?q={query}&media_type=image,video", 10)
+        nasa = json.loads(_fetch_text(f"https://images-api.nasa.gov/search?q={query}&media_type=image,video", 10))
         for item in nasa.get("collection", {}).get("items", [])[:limit]:
             data = (item.get("data") or [{}])[0]
             signals.append({"source": "NASA Image and Video Library", "title": data.get("title", topic), "url": item.get("href", "")})
     except Exception:
         pass
-    try:
-        rss = _fetch_text(f"https://news.google.com/rss/search?q={query}%20NASA&hl=en-US&gl=US&ceid=US:en", 10)
-        for title in re.findall(r"<title>(.*?)</title>", rss)[1:limit + 1]:
-            signals.append({"source": "Google News RSS", "title": re.sub(r"<!\[CDATA\[|\]\]>", "", title), "url": ""})
-    except Exception:
-        pass
-    return signals[:limit]
+
+    unique, seen = [], set()
+    for item in signals:
+        key = item.get("title", "").strip().lower()
+        if key and key not in seen:
+            seen.add(key)
+            unique.append(item)
+    return unique[:limit]
 
 
-def _gemini_research(subject: str, language: str, audience: str, signals: list[dict[str, str]]) -> dict[str, Any] | None:
+def _gemini_research(topic: str, language: str, audience: str, signals: list[dict[str, str]]) -> dict[str, Any] | None:
     key = os.getenv("GEMINI_API_KEY")
     if not key:
         return None
-    prompt = f"""You are a current-topic research editor for a NASA education channel.
-Topic/niche: {subject}
-Audience: {audience}
+    prompt = f"""You are the Universal Research Agent for a professional YouTube production studio.
+Research topic: {topic}
 Output language: {language}
-Current public search signals (use as clues, never invent facts): {json.dumps(signals, ensure_ascii=False)}
+Intended audience: {audience}
+Current public signals collected today: {json.dumps(signals, ensure_ascii=False)}
 
-Return ONLY valid JSON with these keys: why_trending (array of 3 strings), learning_goals (array), sections (array of 6-10 detailed sections), image_queries (array of 8 specific NASA/Pexels search queries), seo_keywords (array of 12 search-friendly phrases), research_status (string), source_notes (array).
-Create a topic-specific brief, not generic filler. Explain why the topic is timely or curiosity-driven, while clearly separating current signals from verified science. Keep it suitable for students in {audience}. Use {language} for all explanations. Include source_notes with the public sources used and say when live signals were unavailable."""
-    body = {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"temperature": 0.35, "responseMimeType": "application/json"}}
-    try:
-        url = GEMINI_URL.format(model=GEMINI_MODELS[0], key=urllib.parse.quote(key, safe=""))
-        request = urllib.request.Request(url, data=json.dumps(body).encode(), headers={"Content-Type": "application/json"}, method="POST")
-        with urllib.request.urlopen(request, timeout=30) as response:
-            data = json.loads(response.read().decode())
-        text = data["candidates"][0]["content"]["parts"][0]["text"]
-        return json.loads(text)
-    except Exception:
-        return None
+Research before any script is written. Use signals as leads, not proof. Choose source types
+appropriate to the topic: primary documents, government agencies, official organizations,
+academic papers, universities, original studies, reputable journalism, archives, company
+documentation, or other authoritative sources. For politics/news prioritize current reporting
+and primary statements. For science prioritize research and scientific institutions.
+Separate established facts from interpretation, disputed claims and speculation.
+Return ONLY JSON with arrays named key_claims, verified_facts, uncertainties, important_people,
+organizations, statistics, counterpoints, timeline, source_notes, image_queries, video_queries,
+seo_keywords, plus research_status. Do not invent statistics, quotations, dates, sources, or
+expert opinions."""
+    body = {"contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {"temperature": 0.25, "responseMimeType": "application/json"}}
+    for model in GEMINI_MODELS:
+        try:
+            url = GEMINI_URL.format(model=model, key=urllib.parse.quote(key, safe=""))
+            request = urllib.request.Request(url, data=json.dumps(body).encode(),
+                                             headers={"Content-Type": "application/json"}, method="POST")
+            with urllib.request.urlopen(request, timeout=45) as response:
+                data = json.loads(response.read().decode())
+            return json.loads(data["candidates"][0]["content"]["parts"][0]["text"])
+        except Exception:
+            continue
+    return None
 
 
-def research(topic: str, language: str = "English", audience: str = "Class 8-12") -> dict[str, Any]:
-    subject = topic.strip() or "NASA and space exploration"
+def research(topic: str, language: str = "English", audience: str = "General public") -> dict[str, Any]:
+    subject = topic.strip() or "a topic worth investigating"
     signals = search_current_signals(subject)
     generated = _gemini_research(subject, language, audience, signals)
     if generated:
-        generated.update({"topic": subject, "audience": audience, "language": language, "current_search_signals": signals})
+        generated.update({"topic": subject, "language": language, "audience": audience, "current_search_signals": signals})
         return generated
-    return asdict(ResearchBrief(subject, audience, language, "Live signals collected; Gemini enrichment unavailable.", signals,
-        [f"{subject} connects to current NASA discoveries and student curiosity", f"It supports visual explainers and question-led learning", "Verify current claims against the linked sources before publishing"],
-        [f"Define {subject} in student-friendly language", f"Explain why {subject} matters", f"Show how {subject} works", "Connect evidence to curriculum and curiosity"],
-        ["Opening question and current hook", "Essential scientific background", f"How {subject} works, step by step", "Evidence, missions, and discoveries", "Misconceptions and safety notes", "Student recap and questions"],
-        [subject, f"{subject} NASA mission", f"{subject} diagram for students", f"{subject} space observation", f"{subject} Pexels science background"],
-        [subject, f"{subject} explained", "NASA education", "space science", "astronomy for students", "STEM lesson", "universe facts"],
-        ["NASA Image and Video Library", "Google News RSS current-topic signals", "Gemini enrichment was unavailable; review live claims before use"]))
+    return asdict(ResearchDossier(
+        subject, language, audience, "Live public signals collected; AI enrichment unavailable.", signals,
+        [f"Investigate the strongest current claims about {subject}"],
+        [f"Current signals exist for {subject}; verify each claim before publication."],
+        ["AI enrichment was unavailable; claims require manual verification."], [], [], [], [], [],
+        ["Public search signals only; no unsupported claims should be published."],
+        [subject, f"{subject} explained", f"{subject} latest"],
+        [f"{subject} footage", f"{subject} documentary visuals"],
+        [subject, f"{subject} explained", f"{subject} latest"]
+    ))
 
 
-def create_brief(topic: str, language: str = "English") -> dict[str, Any]:
-    return research(topic, language)
+create_brief = research
 
 
 def generate_topics(niche: str, count: int = 8, language: str = "English") -> list[str]:
-    """Generate current, niche-related topic ideas from live signals plus Gemini.
-
-    The result is intentionally grounded in public NASA and news signals. Gemini
-    turns those signals into student-friendly, trend-aware titles without claiming
-    access to private search analytics or inventing live trends.
-    """
-    count = max(1, min(count, 30))
-    subject = niche.strip() or "NASA and space exploration"
+    subject = niche.strip() or "interesting current events"
     signals = search_current_signals(subject, max(8, count))
     key = os.getenv("GEMINI_API_KEY")
     if key:
-        prompt = f"""You are the research stage of a NASA education video pipeline.
-Niche/topic: {subject}
-Audience: Class 8-12 students
-Language: {language}
-Live public signals from NASA media and Google News RSS: {json.dumps(signals, ensure_ascii=False)}
-
-Create exactly {count} distinct, topic-related video ideas. Use current signals as inspiration,
-but do not claim search volume, rankings, or facts that are not supported. Mix timely discoveries
-with evergreen curiosity hooks, curriculum connections, how/why explainers, comparisons, and
-mysteries. Every idea must clearly relate to {subject}, be scientifically responsible, and be
-interesting for Class 8-12. Return ONLY a JSON array of title strings in {language}, with no
-numbering or extra text."""
-        body = {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"temperature": 0.75, "responseMimeType": "application/json"}}
-        try:
-            url = GEMINI_URL.format(model=GEMINI_MODELS[0], key=urllib.parse.quote(key, safe=""))
-            request = urllib.request.Request(url, data=json.dumps(body).encode(), headers={"Content-Type": "application/json"}, method="POST")
-            with urllib.request.urlopen(request, timeout=30) as response:
-                data = json.loads(response.read().decode())
-            ideas = json.loads(data["candidates"][0]["content"]["parts"][0]["text"])
-            if isinstance(ideas, list):
-                cleaned = [str(idea).strip() for idea in ideas if str(idea).strip()]
-                if cleaned:
-                    return list(dict.fromkeys(cleaned))[:count]
-        except Exception:
-            pass
-    titles = [item["title"] for item in signals if item.get("title")]
-    fallback = [
-        f"Why {subject} matters: the science students should understand",
-        f"How {subject} works, explained with a NASA story",
-        f"What NASA has discovered about {subject}",
-        f"{subject}: the mystery, evidence, and future of exploration",
-    ]
-    return list(dict.fromkeys(titles + fallback))[:count]
+        prompt = f"""You are a universal YouTube research editor. Based on the seed "{subject}"
+and these current public signals {json.dumps(signals, ensure_ascii=False)}, create exactly {count}
+distinct, accurate, curiosity-driven topic ideas for a general audience in {language}. Mix current
+developments and evergreen questions. Do not claim search volume or rankings. Return only a JSON array."""
+        body = {"contents": [{"parts": [{"text": prompt}]}],
+                "generationConfig": {"temperature": 0.8, "responseMimeType": "application/json"}}
+        for model in GEMINI_MODELS:
+            try:
+                url = GEMINI_URL.format(model=model, key=urllib.parse.quote(key, safe=""))
+                request = urllib.request.Request(url, data=json.dumps(body).encode(),
+                                                 headers={"Content-Type": "application/json"}, method="POST")
+                with urllib.request.urlopen(request, timeout=35) as response:
+                    data = json.loads(response.read().decode())
+                ideas = json.loads(data["candidates"][0]["content"]["parts"][0]["text"])
+                if isinstance(ideas, list):
+                    return list(dict.fromkeys(str(x).strip() for x in ideas if str(x).strip()))[:count]
+            except Exception:
+                continue
+    return list(dict.fromkeys([x["title"] for x in signals if x.get("title")] + [
+        f"Why {subject} matters", f"What is really happening with {subject}",
+        f"The story behind {subject}", f"{subject} explained"
+    ]))[:count]
 
 
 def write_brief(brief: dict[str, Any], path: str) -> None:
@@ -168,11 +179,11 @@ def load_brief(path: str) -> dict[str, Any]:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Research current topics and create a Cosmos education brief")
+    parser = argparse.ArgumentParser(description="Universal current-topic research")
     parser.add_argument("topic")
     parser.add_argument("--language", default="English")
-    parser.add_argument("--audience", default="Class 8-12")
-    parser.add_argument("--topics", action="store_true", help="Print current topic ideas instead of a brief")
+    parser.add_argument("--audience", default="General public")
+    parser.add_argument("--topics", action="store_true")
     parser.add_argument("--count", type=int, default=8)
     args = parser.parse_args()
     result = generate_topics(args.topic, args.count, args.language) if args.topics else research(args.topic, args.language, args.audience)
@@ -183,4 +194,4 @@ if __name__ == "__main__":
     main()
 
 
-__all__ = ["ResearchBrief", "research", "create_brief", "generate_topics", "search_current_signals", "write_brief", "load_brief"]
+__all__ = ["ResearchDossier", "research", "create_brief", "generate_topics", "search_current_signals", "write_brief", "load_brief"]
