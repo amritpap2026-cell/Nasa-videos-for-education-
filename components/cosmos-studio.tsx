@@ -456,7 +456,7 @@ export default function CosmosStudio() {
                   <span style={{ display: "block", fontSize: 12, opacity: 0.72 }}>Research + master protocol + complete audited package</span>
                 </button>
                 <button type="button" onClick={() => setGenerationMode("scriptwriter")} style={{ textAlign: "left", padding: 14, borderRadius: 10, border: "2px solid #2563eb", background: generationMode === "scriptwriter" ? "#eff6ff" : "white" }}>
-                  <strong>Generate with scriptwriter</strong>
+                  <strong>Generate via scriptwriter</strong>
                   <span style={{ display: "block", fontSize: 12, opacity: 0.72 }}>Research + creative documentary writing for any topic and runtime</span>
                 </button>
               </div>
@@ -467,7 +467,7 @@ export default function CosmosStudio() {
                 {loading && generationMode === "master" ? "Generating..." : "Generate with master prompt"}
               </button>
               <button className="generate" onClick={() => generate("scriptwriter")} disabled={loading || topic.trim().length < 3}>
-                {loading && generationMode === "scriptwriter" ? "Generating..." : "Generate with scriptwriter"}
+                {loading && generationMode === "scriptwriter" ? "Generating..." : "Generate via scriptwriter"}
               </button>
             </div>
 
