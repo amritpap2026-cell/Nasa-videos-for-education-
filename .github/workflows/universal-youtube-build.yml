@@ -1,10 +1,11 @@
-name: Universal YouTube build check
+name: Universal YouTube build and Python agent check
 
 on:
   push:
     branches:
       - main
       - universal-youtube-engine
+      - python-agent-pipeline
   pull_request:
     branches:
       - main
@@ -22,12 +23,19 @@ jobs:
           node-version: 22
           cache: npm
 
-      - name: Install dependencies
+      - name: Use Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Node dependencies
         run: npm ci
+
+      - name: Check Python agent syntax
+        run: python -m py_compile api/agents.py agents/researcher.py agents/scriptwriter.py pipeline.py config1.py
 
       - name: TypeScript check
         run: npx tsc --noEmit
 
       - name: Next.js production build
         run: npm run build
-
