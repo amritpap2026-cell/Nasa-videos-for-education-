@@ -244,7 +244,14 @@ export default function CosmosStudio() {
   async function generateAsset(type: "image" | "video" | "thumbnail" | "seo") {
     setAssetType(type); setAssetLoading(true); setAssetText("")
     try {
-      const response = await fetch("/api/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mode: type === "seo" ? "seo" : "asset-prompt", assetType: type, topic: topic.trim(), language }) })
+      const response = await fetch("/api/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
+        mode: type === "seo" ? "seo" : "asset-prompt",
+        assetType: type,
+        topic: topic.trim(),
+        language,
+        generationMode,
+        package: result?.text || "",
+      }) })
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || "Generation failed")
       setAssetText(data.text || "")
