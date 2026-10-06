@@ -40,9 +40,13 @@ export default function CosmosStudio() {
   const [packageDone, setPackageDone] = useState(false)
   const [generationMode, setGenerationMode] = useState<"master" | "scriptwriter">("master")
   const [assetOpen, setAssetOpen] = useState(false)
-  const [assetType, setAssetType] = useState<"image" | "video" | "thumbnail" | "seo">("image")
+  const [assetType, setAssetType] = useState<"image" | "video" | "thumbnail" | "seo" | "motion">("image")
   const [assetLoading, setAssetLoading] = useState(false)
   const [assetText, setAssetText] = useState("")
+  const [assetPrompt, setAssetPrompt] = useState("")
+  const [assetOutput, setAssetOutput] = useState("")
+  const [assetOperation, setAssetOperation] = useState("")
+  const [assetSelected, setAssetSelected] = useState(false)
 
   // Visuals (Step 3) — independent modal
   const [visualsOpen, setVisualsOpen] = useState(false)
@@ -250,26 +254,104 @@ export default function CosmosStudio() {
     setOpen(true)
     setVisualsOpen(false)
   }
-  async function generateAsset(type: "image" | "video" | "thumbnail" | "seo") {
-    setAssetType(type); setAssetLoading(true); setAssetText("")
+  async function generateAsset(type: "image" | "video" | "thumbnail" | "seo" | "motion") {
+    setAssetType(type)
+    setAssetLoading(true)
+    setAssetText("")
+    setAssetPrompt("")
+    setAssetOutput("")
+    setAssetOperation("")
+    setAssetSelected(false)
     try {
-      const response = await fetch("/api/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
-        mode: type === "seo" ? "seo" : "asset-prompt",
-        assetType: type,
-        topic: topic.trim(),
-        language,
-        generationMode,
-        package: result?.text || "",
-      }) })
+      const response = await fetch("/api/assets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "prompt",
+          assetType: type,
+          topic: topic.trim(),
+          language,
+          package: result?.text || "",
+        }),
+      })
       const data = await response.json()
-      if (!response.ok) throw new Error(data.error || "Generation failed")
+      if (!response.ok) throw new Error(data.error || "Prompt generation failed")
+      setAssetPrompt(data.text || "")
       setAssetText(data.text || "")
-    } catch (error) { setAssetText(error instanceof Error ? error.message : "Generation failed.") }
-    finally { setAssetLoading(false) }
+    } catch (error) {
+      setAssetText(error instanceof Error ? error.message : "Prompt generation failed.")
+    } finally {
+      setAssetLoading(false)
+    }
   }
 
-  function openAssets(type: "image" | "video" | "thumbnail" | "seo") {
-    setAssetType(type); setAssetOpen(true)
+  async function generateRealAsset() {
+    if (!assetPrompt.trim()) return
+    setAssetLoading(true)
+    setAssetOutput("")
+    setAssetOperation("")
+    setAssetSelected(false)
+    try {
+      const response = await fetch("/api/assets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "generate",
+          assetType,
+          topic: topic.trim(),
+          language,
+          prompt: assetPrompt.trim(),
+          package: result?.text || "",
+        }),
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || "Real generation failed")
+      if (data.kind === "image") {
+        setAssetOutput("data:" + (data.mimeType || "image/jpeg") + ";base64," + data.data)
+      } else if (data.kind === "video") {
+        setAssetOperation(data.operation || "")
+        setAssetText("Video generation started. This can take several minutes. Keep this window open and press Check video status.")
+      } else if (data.kind === "motion") {
+        setAssetOutput("data:image/svg+xml;charset=utf-8," + encodeURIComponent(data.svg || ""))
+      } else if (data.kind === "seo") {
+        setAssetOutput(data.text || "")
+      }
+    } catch (error) {
+      setAssetText(error instanceof Error ? error.message : "Real generation failed.")
+    } finally {
+      setAssetLoading(false)
+    }
+  }
+
+  async function checkVideoStatus() {
+    if (!assetOperation) return
+    setAssetLoading(true)
+    try {
+      const response = await fetch("/api/assets?action=video-status&operation=" + encodeURIComponent(assetOperation))
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || "Could not check video status")
+      if (data.done && data.videoUri) {
+        setAssetOutput("/api/assets?action=video-download&operation=" + encodeURIComponent(assetOperation))
+        setAssetText("Video is ready. Preview it below, then click Select.")
+      } else if (data.failed) {
+        throw new Error(data.error || "Video generation failed")
+      } else {
+        setAssetText("Video is still generating. Wait a little longer and check again.")
+      }
+    } catch (error) {
+      setAssetText(error instanceof Error ? error.message : "Could not check video status.")
+    } finally {
+      setAssetLoading(false)
+    }
+  }
+
+  function selectAsset() {
+    setAssetSelected(true)
+    setStatus(`${assetType.toUpperCase()} selected for this production.`)
+  }
+
+  function openAssets(type: "image" | "video" | "thumbnail" | "seo" | "motion") {
+    setAssetType(type); setAssetOpen(true); setAssetSelected(false); setAssetOutput(""); setAssetOperation("")
     if (topic.trim().length >= 3) void generateAsset(type)
   }
 
@@ -564,11 +646,12 @@ export default function CosmosStudio() {
                   </button>
                 </div>
 
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, marginTop: 14 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8, marginTop: 14 }}>
                   <button className="secondary voice-play" type="button" onClick={() => openAssets("image")}><ImageIcon size={15} /> AI image</button>
                   <button className="secondary voice-play" type="button" onClick={() => openAssets("video")}><Video size={15} /> AI video</button>
                   <button className="secondary voice-play" type="button" onClick={() => openAssets("thumbnail")}><ImageIcon size={15} /> Thumbnail</button>
                   <button className="secondary voice-play" type="button" onClick={() => openAssets("seo")}><Search size={15} /> SEO + tags</button>
+                  <button className="secondary voice-play" type="button" onClick={() => openAssets("motion")}><Film size={15} /> Motion graphics</button>
                 </div>
                 <div className="voiceover">
                   <div>
@@ -663,16 +746,67 @@ export default function CosmosStudio() {
 
       {assetOpen && (
         <div className="overlay" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setAssetOpen(false) }}>
-          <section className="modal" style={{ maxWidth: 960, width: "min(960px, calc(100vw - 32px))" }} role="dialog" aria-modal="true">
+          <section className="modal" style={{ maxWidth: 1000, width: "min(1000px, calc(100vw - 32px))" }} role="dialog" aria-modal="true">
             <div className="modal-head">
-              <div><div className="modal-kicker">AI production workspace</div>
-                <h2>{assetType === "image" ? "AI image prompts" : assetType === "video" ? "AI video prompts" : assetType === "thumbnail" ? "Thumbnail concepts" : "SEO + tags"}</h2>
-                <p className="muted">Generated from the current topic. You can edit the result before using it.</p>
+              <div>
+                <div className="modal-kicker">Individual AI production workspace</div>
+                <h2>{assetType === "image" ? "AI IMAGE" : assetType === "video" ? "AI VIDEO" : assetType === "thumbnail" ? "THUMBNAIL" : assetType === "seo" ? "SEO + TAGS" : "MOTION GRAPHICS"}</h2>
+                <p className="muted">The production package is the source of truth. Edit the generated prompt, then generate the real asset.</p>
               </div>
               <button className="close" aria-label="Close" onClick={() => setAssetOpen(false)}><X size={18} /></button>
             </div>
-            <button className="generate" type="button" onClick={() => generateAsset(assetType)} disabled={assetLoading || topic.trim().length < 3}>{assetLoading ? "Generating..." : "Generate"}</button>
-            {assetText && <textarea className="package-editor" style={{ minHeight: 500, width: "100%", marginTop: 14 }} value={assetText} onChange={(e) => setAssetText(e.target.value)} />}
+
+            <div className="field">
+              <label htmlFor="asset-script"><strong>Generated script / prompt</strong></label>
+              <textarea
+                id="asset-script"
+                className="package-editor"
+                style={{ minHeight: 260, width: "100%", marginTop: 10, resize: "vertical" }}
+                value={assetPrompt}
+                onChange={(e) => setAssetPrompt(e.target.value)}
+                placeholder="The AI production prompt will appear here."
+              />
+            </div>
+
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <button className="generate" type="button" onClick={generateRealAsset} disabled={assetLoading || !assetPrompt.trim()}>
+                {assetLoading ? "Generating..." : "Generate"}
+              </button>
+              {assetType === "video" && assetOperation && (
+                <button className="secondary voice-play" type="button" onClick={checkVideoStatus} disabled={assetLoading}>
+                  Check video status
+                </button>
+              )}
+              <button className="secondary voice-play" type="button" onClick={selectAsset} disabled={!assetOutput}>
+                <Check size={16} /> {assetSelected ? "Selected" : "Select"}
+              </button>
+            </div>
+
+            {assetText && <p className="status" role="status" style={{ marginTop: 12 }}>{assetText}</p>}
+
+            {assetOutput && assetType !== "seo" && assetType !== "motion" && (
+              <div style={{ marginTop: 16 }}>
+                <img
+                  src={assetOutput}
+                  alt="Generated AI asset"
+                  style={{ width: "100%", borderRadius: 12, display: "block" }}
+                  onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none" }}
+                />
+                {assetType === "video" && (
+                  <video controls src={assetOutput} style={{ width: "100%", borderRadius: 12, marginTop: 12 }} />
+                )}
+              </div>
+            )}
+
+            {assetOutput && assetType === "seo" && (
+              <textarea className="package-editor" style={{ minHeight: 420, width: "100%", marginTop: 14 }} value={assetOutput} readOnly />
+            )}
+
+            {assetOutput && assetType === "motion" && (
+              <div style={{ marginTop: 14, border: "1px solid #d7e9e8", borderRadius: 12, overflow: "hidden", background: "#111" }}>
+                <iframe title="Generated motion graphics" src={assetOutput} style={{ width: "100%", aspectRatio: "16/9", border: 0 }} />
+              </div>
+            )}
           </section>
         </div>
       )}
