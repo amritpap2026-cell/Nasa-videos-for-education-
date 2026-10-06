@@ -20,20 +20,26 @@ async function textGenerate(apiKey: string, prompt: string) {
 }
 
 async function imageGenerate(apiKey: string, prompt: string, thumbnail: boolean) {
-  const r = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + IMAGE_MODEL + ":generateContent", {
-    method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+  const r = await fetch("https://generativelanguage.googleapis.com/v1beta/interactions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
     body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { responseModalities: ["IMAGE"], response_format: { image: { aspect_ratio: "16:9", image_size: thumbnail ? "2K" : "1K" } } },
+      model: IMAGE_MODEL,
+      input: prompt,
+      response_format: {
+        type: "image",
+        mime_type: "image/png",
+        aspect_ratio: "16:9",
+        image_size: thumbnail ? "2K" : "1K",
+      },
     }),
     signal: AbortSignal.timeout(120000),
   })
   const d = await r.json().catch(() => ({}))
   if (!r.ok) throw new Error(d?.error?.message || "Image generation failed.")
-  const part = d?.candidates?.[0]?.content?.parts?.find((p: any) => p?.inlineData?.data || p?.inline_data?.data)
-  const inline = part?.inlineData || part?.inline_data
-  if (!inline?.data) throw new Error("The image model returned no image.")
-  return { kind: "image", data: inline.data, mimeType: inline.mimeType || inline.mime_type || "image/png", model: IMAGE_MODEL }
+  const image = d?.output_image
+  if (!image?.data) throw new Error("The image model returned no image.")
+  return { kind: "image", data: image.data, mimeType: image.mime_type || "image/png", model: IMAGE_MODEL }
 }
 
 async function videoStart(apiKey: string, prompt: string) {
