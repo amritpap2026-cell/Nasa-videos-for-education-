@@ -786,14 +786,14 @@ export default function CosmosStudio() {
 
             {assetOutput && assetType !== "seo" && assetType !== "motion" && (
               <div style={{ marginTop: 16 }}>
-                <img
-                  src={assetOutput}
-                  alt="Generated AI asset"
-                  style={{ width: "100%", borderRadius: 12, display: "block" }}
-                  onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none" }}
-                />
-                {assetType === "video" && (
-                  <video controls src={assetOutput} style={{ width: "100%", borderRadius: 12, marginTop: 12 }} />
+                {assetType === "video" ? (
+                  <video controls src={assetOutput} style={{ width: "100%", borderRadius: 12, display: "block" }} />
+                ) : (
+                  <img
+                    src={assetOutput}
+                    alt="Generated AI asset"
+                    style={{ width: "100%", borderRadius: 12, display: "block" }}
+                  />
                 )}
               </div>
             )}
