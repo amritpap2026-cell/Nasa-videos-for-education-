@@ -28,7 +28,7 @@ async function imageGenerate(apiKey: string, prompt: string, thumbnail: boolean)
       input: prompt,
       response_format: {
         type: "image",
-        mime_type: "image/png",
+        mime_type: "image/jpeg",
         aspect_ratio: "16:9",
         image_size: thumbnail ? "2K" : "1K",
       },
@@ -39,7 +39,7 @@ async function imageGenerate(apiKey: string, prompt: string, thumbnail: boolean)
   if (!r.ok) throw new Error(d?.error?.message || "Image generation failed.")
   const image = d?.output_image
   if (!image?.data) throw new Error("The image model returned no image.")
-  return { kind: "image", data: image.data, mimeType: image.mime_type || "image/png", model: IMAGE_MODEL }
+  return { kind: "image", data: image.data, mimeType: image.mime_type || "image/jpeg", model: IMAGE_MODEL }
 }
 
 async function videoStart(apiKey: string, prompt: string) {
