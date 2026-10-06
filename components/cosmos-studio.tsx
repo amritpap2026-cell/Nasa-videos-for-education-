@@ -254,35 +254,54 @@ export default function CosmosStudio() {
     setOpen(true)
     setVisualsOpen(false)
   }
+  function extractProductionHeader(packageText: string, type: "image" | "video" | "thumbnail" | "seo" | "motion") {
+    const text = packageText.replace(/\r\n/g, "\n").replace(/\r/g, "\n")
+    const headers: Record<string, string[]> = {
+      image: ["AI IMAGE GENERATION PROMPTS"],
+      video: ["AI VIDEO GENERATION PROMPTS"],
+      thumbnail: ["THUMBNAIL CONCEPTS"],
+      motion: ["MOTION GRAPHICS + DATA VISUALIZATION"],
+      seo: ["TITLE + SEO PACKAGE", "DESCRIPTION + CHAPTERS + PINNED COMMENT"],
+    }
+    const wanted = headers[type]
+    const lines = text.split("\n")
+    const norm = (s: string) => s.replace(/^\s*[#*\-\d.)]+\s*/, "").trim().toUpperCase()
+    const indexes = lines.map((line, i) => ({ line, i })).filter(({ line }) =>
+      wanted.some((h) => norm(line).includes(h))
+    )
+    if (!indexes.length) return ""
+    const start = indexes[0].i
+    const allHeaders = [
+      "RESEARCH BRIEF","STORY ANGLE","VIDEO PROMISE + AUDIENCE","FORMAT + DURATION PLAN","STORY ARCHITECTURE",
+      "THREE HOOKS + SELECTED HOOK","RETENTION MAP","COMPLETE SCRIPT PLAN","FACT-CHECK + SOURCE MAP","PRODUCTION MANIFEST",
+      "FULL WORD-FOR-WORD SCRIPT (STORYTELLING SCRIPT)","COMPLETE TIMESTAMPED STORYBOARD / FINAL TIMELINE",
+      "AI IMAGE GENERATION PROMPTS","AI VIDEO GENERATION PROMPTS","REAL / ARCHIVAL / STOCK FOOTAGE PLAN",
+      "MOTION GRAPHICS + DATA VISUALIZATION","ON-SCREEN TEXT + SUBTITLES","VOICEOVER DIRECTION","MUSIC + SOUND DESIGN",
+      "EDITING + COLOR BLUEPRINT","TITLE + SEO PACKAGE","DESCRIPTION + CHAPTERS + PINNED COMMENT",
+      "YOUTUBE SHORTS REPURPOSING","FINAL PRODUCTION / PUBLISHING / QC PLAN","THUMBNAIL CONCEPTS","FINAL COMPLETION AUDIT"
+    ]
+    const end = lines.findIndex((line, i) => i > start && allHeaders.some((h) => norm(line).includes(h)))
+    return lines.slice(start, end > start ? end : lines.length).join("\n").trim()
+  }
+
   async function generateAsset(type: "image" | "video" | "thumbnail" | "seo" | "motion") {
     setAssetType(type)
-    setAssetLoading(true)
+    setAssetLoading(false)
     setAssetText("")
-    setAssetPrompt("")
     setAssetOutput("")
     setAssetOperation("")
     setAssetSelected(false)
-    try {
-      const response = await fetch("/api/assets", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "prompt",
-          assetType: type,
-          topic: topic.trim(),
-          language,
-          package: result?.text || "",
-        }),
-      })
-      const data = await response.json()
-      if (!response.ok) throw new Error(data.error || "Prompt generation failed")
-      setAssetPrompt(data.text || "")
-      setAssetText(data.text || "")
-    } catch (error) {
-      setAssetText(error instanceof Error ? error.message : "Prompt generation failed.")
-    } finally {
-      setAssetLoading(false)
+
+    const packageText = result?.text || ""
+    const headerScript = extractProductionHeader(packageText, type)
+    if (headerScript) {
+      setAssetPrompt(headerScript)
+      setAssetText("Pasted directly from the matching production header in the main script. Edit it if needed, then Generate.")
+      return
     }
+
+    setAssetPrompt("")
+    setAssetText("The main script does not contain the required " + type.toUpperCase() + " header. Regenerate with Scriptwriter or Master Prompt first.")
   }
 
   async function generateRealAsset() {
