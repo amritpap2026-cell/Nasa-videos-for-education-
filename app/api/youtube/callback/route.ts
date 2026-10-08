@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { cookieOptions, decryptSession, exchangeCode, encryptSession, youtubeCookieNames } from "../../../lib/youtube-auth"
+import { cookieOptions, decryptSession, exchangeCode, encryptSession, youtubeCookieNames } from "../../../../lib/youtube-auth"
 
 export const dynamic = "force-dynamic"
 
