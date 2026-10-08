@@ -5,6 +5,44 @@ import { ArrowRight, Check, Film, Globe2, Image as ImageIcon, Lightbulb, Search,
 
 type Result = { text: string; model: string; notice?: string }
 
+type StudioAsset = {
+  id: string
+  type: string
+  url: string
+  name: string
+  createdAt: string
+  selected?: boolean
+  operation?: string
+}
+
+type StudioProject = {
+  id: string
+  createdAt: string
+  updatedAt: string
+  topic: string
+  language: string
+  gradeLevel: string
+  length: string
+  packageType: string
+  status: "draft" | "generating" | "assets-ready" | "review" | "ready-to-publish" | "published"
+  targetYouTubeChannelId: string
+  targetYouTubeChannelTitle: string
+  research: string
+  script: string
+  storyboard: string
+  voiceoverUrl: string
+  youtube: {
+    title: string
+    description: string
+    tags: string[]
+    thumbnailUrl: string
+    captionsUrl: string
+    playlistId: string
+  }
+  assets: StudioAsset[]
+  audit: string
+}
+
 type VisualItem = {
   source: string
   title: string
@@ -56,6 +94,54 @@ export default function CosmosStudio() {
   const [selectedYoutubeChannel, setSelectedYoutubeChannel] = useState("")
   const [youtubeLoading, setYoutubeLoading] = useState(false)
   const [youtubeMessage, setYoutubeMessage] = useState("")
+  const [currentProject, setCurrentProject] = useState<StudioProject | null>(null)
+
+  function createOrLoadProject(): StudioProject {
+    const saved = localStorage.getItem("cosmos-current-project")
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved) as StudioProject
+        if (parsed?.id) return parsed
+      } catch {}
+    }
+    const now = new Date().toISOString()
+    const project: StudioProject = {
+      id: "project-" + Date.now().toString(36),
+      createdAt: now,
+      updatedAt: now,
+      topic: topic.trim(),
+      language,
+      gradeLevel,
+      length,
+      packageType,
+      status: "draft",
+      targetYouTubeChannelId: "",
+      targetYouTubeChannelTitle: "",
+      research: "",
+      script: "",
+      storyboard: "",
+      voiceoverUrl: "",
+      youtube: { title: "", description: "", tags: [], thumbnailUrl: "", captionsUrl: "", playlistId: "" },
+      assets: [],
+      audit: "",
+    }
+    localStorage.setItem("cosmos-current-project", JSON.stringify(project))
+    return project
+  }
+
+  function updateProject(patch: Partial<StudioProject>) {
+    const base = currentProject || createOrLoadProject()
+    const next = { ...base, ...patch, updatedAt: new Date().toISOString() }
+    localStorage.setItem("cosmos-current-project", JSON.stringify(next))
+    setCurrentProject(next)
+    return next
+  }
+
+  function attachProjectAssets(items: StudioAsset[]) {
+    const base = currentProject || createOrLoadProject()
+    updateProject({ assets: [...(base.assets || []), ...items], status: "assets-ready" })
+  }
+
 
   // Visuals (Step 3) — independent modal
   const [visualsOpen, setVisualsOpen] = useState(false)
@@ -82,6 +168,14 @@ export default function CosmosStudio() {
     try {
       const existing = JSON.parse(localStorage.getItem("cosmos-youtube-studio-assets") || "[]")
       const next = [...(Array.isArray(existing) ? existing : []), ...additions]
+      attachProjectAssets(additions.map((item) => ({
+        id: item.id,
+        type: item.type,
+        url: item.url,
+        name: item.name,
+        createdAt: item.createdAt,
+        selected: false,
+      })))
       localStorage.setItem("cosmos-youtube-studio-assets", JSON.stringify(next))
       setYoutubeAssets(next)
       setYoutubeStudioOpen(true)
@@ -121,6 +215,11 @@ export default function CosmosStudio() {
   function chooseYoutubeChannel(channelId: string) {
     setSelectedYoutubeChannel(channelId)
     localStorage.setItem("cosmos-youtube-selected-channel", channelId)
+    const channel = youtubeChannels.find((item) => item.id === channelId)
+    updateProject({
+      targetYouTubeChannelId: channelId,
+      targetYouTubeChannelTitle: channel?.title || "",
+    })
   }
 
   async function disconnectYoutube() {
@@ -180,6 +279,15 @@ export default function CosmosStudio() {
       }
       setResult(data)
       setStoryText("")
+      updateProject({
+        topic: topic.trim(),
+        language,
+        gradeLevel,
+        length,
+        packageType,
+        script: data?.text || "",
+        status: "review",
+      })
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Generation failed. Please try again.")
     } finally {
@@ -283,6 +391,8 @@ export default function CosmosStudio() {
       const bytes = Uint8Array.from(atob(data.audio), (character) => character.charCodeAt(0))
       if (audioUrl) URL.revokeObjectURL(audioUrl)
       setAudioUrl(URL.createObjectURL(new Blob([bytes], { type: data.mimeType || "audio/wav" })))
+      const generatedVoiceUrl = audioUrl || ""
+      updateProject({ voiceoverUrl: generatedVoiceUrl, status: "assets-ready" })
       setVoiceoverUsed(false)
       setStatus("Voiceover created. Listen below, then choose Use this voiceover.")
     } catch (error) {
