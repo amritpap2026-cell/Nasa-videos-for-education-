@@ -305,7 +305,7 @@ export default function CosmosStudio() {
     } catch { setYoutubeAssets([]) }
   }
 
-  function saveToYoutubeStudio(items: Array<{ index: number; url: string; type?: string }>) {
+  function saveToYoutubeStudio(items: Array<{ index: number; url: string; type?: string; sceneIds?: string[]; finalStart?: string; finalEnd?: string; sourceStart?: string; sourceEnd?: string }>) {
     const now = new Date().toISOString()
     const additions = items.filter((item) => item.url).map((item) => ({
       id: "asset-" + Date.now() + "-" + item.index + "-" + Math.random().toString(36).slice(2, 8),
