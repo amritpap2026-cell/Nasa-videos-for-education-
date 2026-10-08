@@ -56,6 +56,8 @@ type StudioProject = {
   storyboard: string
   timeline: StudioTimelineItem[]
   voiceoverUrl: string
+  voiceoverDurationSeconds: number
+  timelineFinalizedAt: string
   youtube: {
     title: string
     description: string
@@ -147,6 +149,8 @@ export default function CosmosStudio() {
       storyboard: "",
       timeline: [],
       voiceoverUrl: "",
+      voiceoverDurationSeconds: 0,
+      timelineFinalizedAt: "",
       youtube: { title: "", description: "", tags: [], thumbnailUrl: "", captionsUrl: "", playlistId: "" },
       assets: [],
       audit: "",
@@ -197,6 +201,63 @@ export default function CosmosStudio() {
     const ids = [...prompt.matchAll(/SCENE[_ -]?(\d{1,4})/gi)].map((m) => "SCENE_" + String(Number(m[1])).padStart(3, "0"))
     const matched = timeline.filter((item) => ids.includes(item.sceneId))
     return matched.length ? matched : timeline.slice(0, 1)
+  }
+
+  function timestampToSeconds(value: string) {
+    const raw = String(value || "").trim()
+    if (!raw) return 0
+    const parts = raw.split(":").map(Number)
+    if (parts.some((n) => !Number.isFinite(n))) return 0
+    if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2]
+    if (parts.length === 2) return parts[0] * 60 + parts[1]
+    return parts[0] || 0
+  }
+
+  function secondsToTimestamp(seconds: number) {
+    const safe = Math.max(0, Number.isFinite(seconds) ? seconds : 0)
+    const minutes = Math.floor(safe / 60)
+    const secs = safe - minutes * 60
+    return String(minutes).padStart(2, "0") + ":" + secs.toFixed(3).padStart(6, "0")
+  }
+
+  function finalizeTimelineToVoiceover(durationSeconds: number) {
+    const base = currentProject || createOrLoadProject()
+    const timeline = base.timeline || []
+    if (!timeline.length || !durationSeconds || durationSeconds <= 0) return
+    const plannedEnd = Math.max(...timeline.map((item) => timestampToSeconds(item.finalEnd)), 0)
+    if (!plannedEnd) return
+
+    // Preserve scene order and all scene-linked metadata, but make the actual
+    // voiceover duration the authoritative clock for the final production.
+    const scale = durationSeconds / plannedEnd
+    const finalTimeline = timeline.map((item) => {
+      const start = timestampToSeconds(item.finalStart) * scale
+      const end = timestampToSeconds(item.finalEnd) * scale
+      const visualStart = timestampToSeconds(item.visualStart || item.finalStart) * scale
+      const visualEnd = timestampToSeconds(item.visualEnd || item.finalEnd) * scale
+      const mgStart = item.motionGraphicStart ? timestampToSeconds(item.motionGraphicStart) * scale : 0
+      const mgEnd = item.motionGraphicEnd ? timestampToSeconds(item.motionGraphicEnd) * scale : 0
+      const textStart = item.onScreenTextStart ? timestampToSeconds(item.onScreenTextStart) * scale : 0
+      const textEnd = item.onScreenTextEnd ? timestampToSeconds(item.onScreenTextEnd) * scale : 0
+      return {
+        ...item,
+        finalStart: secondsToTimestamp(start),
+        finalEnd: secondsToTimestamp(end),
+        duration: Number((end - start).toFixed(3)),
+        visualStart: secondsToTimestamp(visualStart),
+        visualEnd: secondsToTimestamp(visualEnd),
+        motionGraphicStart: item.motionGraphicStart ? secondsToTimestamp(mgStart) : "",
+        motionGraphicEnd: item.motionGraphicEnd ? secondsToTimestamp(mgEnd) : "",
+        onScreenTextStart: item.onScreenTextStart ? secondsToTimestamp(textStart) : "",
+        onScreenTextEnd: item.onScreenTextEnd ? secondsToTimestamp(textEnd) : "",
+        planned: false,
+      }
+    })
+    updateProject({
+      timeline: finalTimeline,
+      voiceoverDurationSeconds: Number(durationSeconds.toFixed(3)),
+      timelineFinalizedAt: new Date().toISOString(),
+    })
   }
 
   function updateProject(patch: Partial<StudioProject>) {
@@ -472,7 +533,26 @@ export default function CosmosStudio() {
       setAudioUrl(generatedVoiceUrl)
       updateProject({ voiceoverUrl: generatedVoiceUrl, status: "assets-ready" })
       setVoiceoverUsed(false)
-      setStatus("Voiceover created. Listen below, then choose Use this voiceover.")
+
+      // The generated audio is the authoritative clock. Read its real duration
+      // in-browser, then retime every scene/visual/overlay that already carries
+      // the Master Prompt timeline. The existing voice generation engine remains
+      // unchanged.
+      const audio = new Audio(generatedVoiceUrl)
+      audio.preload = "metadata"
+      audio.onloadedmetadata = () => {
+        const duration = Number(audio.duration)
+        if (!Number.isFinite(duration) || duration <= 0) {
+          setStatus("Voiceover created, but its duration could not be measured.")
+          return
+        }
+        finalizeTimelineToVoiceover(duration)
+        setStatus("Voiceover created. Final master timeline synchronized to " + duration.toFixed(3) + " seconds.")
+      }
+      audio.onerror = () => {
+        setStatus("Voiceover created. The audio is ready, but timeline duration could not be measured automatically.")
+      }
+      audio.load()
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Voiceover generation failed.")
     } finally {
