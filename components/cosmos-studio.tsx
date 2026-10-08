@@ -115,7 +115,7 @@ export default function CosmosStudio() {
   const [assetCount, setAssetCount] = useState(1)
   const [assetOutputs, setAssetOutputs] = useState<Array<{ index: number; url: string; operation?: string; error?: string }>>([])
   const [youtubeStudioOpen, setYoutubeStudioOpen] = useState(false)
-  const [youtubeAssets, setYoutubeAssets] = useState<Array<{ id: string; type: string; name: string; url: string; createdAt: string }>>([])
+  const [youtubeAssets, setYoutubeAssets] = useState<Array<{ id: string; type: string; name: string; url: string; createdAt: string; sceneIds?: string[]; finalStart?: string; finalEnd?: string; sourceStart?: string; sourceEnd?: string }>>([])
   const [youtubeConnected, setYoutubeConnected] = useState(false)
   const [youtubeChannels, setYoutubeChannels] = useState<Array<{ id: string; title: string; thumbnail: string; description: string; uploadsPlaylistId: string }>>([])
   const [selectedYoutubeChannel, setSelectedYoutubeChannel] = useState("")
