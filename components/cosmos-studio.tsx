@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { ArrowRight, Check, Film, Globe2, Image as ImageIcon, Lightbulb, Search, Sparkles, Video, Volume2, X } from "lucide-react"
 
 type Result = { text: string; model: string; notice?: string }
@@ -51,6 +51,11 @@ export default function CosmosStudio() {
   const [assetOutputs, setAssetOutputs] = useState<Array<{ index: number; url: string; operation?: string; error?: string }>>([])
   const [youtubeStudioOpen, setYoutubeStudioOpen] = useState(false)
   const [youtubeAssets, setYoutubeAssets] = useState<Array<{ id: string; type: string; name: string; url: string; createdAt: string }>>([])
+  const [youtubeConnected, setYoutubeConnected] = useState(false)
+  const [youtubeChannels, setYoutubeChannels] = useState<Array<{ id: string; title: string; thumbnail: string; description: string; uploadsPlaylistId: string }>>([])
+  const [selectedYoutubeChannel, setSelectedYoutubeChannel] = useState("")
+  const [youtubeLoading, setYoutubeLoading] = useState(false)
+  const [youtubeMessage, setYoutubeMessage] = useState("")
 
   // Visuals (Step 3) — independent modal
   const [visualsOpen, setVisualsOpen] = useState(false)
@@ -84,9 +89,53 @@ export default function CosmosStudio() {
     } catch { setStatus("Could not save assets to YouTube Studio in this browser.") }
   }
 
+  async function loadYoutubeChannels() {
+    setYoutubeLoading(true)
+    setYoutubeMessage("")
+    try {
+      const response = await fetch("/api/youtube/channels", { cache: "no-store" })
+      const data = await response.json()
+      if (!response.ok) {
+        setYoutubeConnected(false)
+        setYoutubeChannels([])
+        if (response.status !== 401) setYoutubeMessage(data.error || "Could not load YouTube channels.")
+        return
+      }
+      setYoutubeConnected(true)
+      setYoutubeChannels(Array.isArray(data.channels) ? data.channels : [])
+      const saved = localStorage.getItem("cosmos-youtube-selected-channel") || ""
+      const next = data.channels?.some((channel: any) => channel.id === saved) ? saved : (data.channels?.[0]?.id || "")
+      setSelectedYoutubeChannel(next)
+      if (next) localStorage.setItem("cosmos-youtube-selected-channel", next)
+    } catch (error) {
+      setYoutubeMessage(error instanceof Error ? error.message : "Could not connect to YouTube.")
+    } finally {
+      setYoutubeLoading(false)
+    }
+  }
+
+  function connectYoutube() {
+    window.location.href = "/api/youtube/login"
+  }
+
+  function chooseYoutubeChannel(channelId: string) {
+    setSelectedYoutubeChannel(channelId)
+    localStorage.setItem("cosmos-youtube-selected-channel", channelId)
+  }
+
+  async function disconnectYoutube() {
+    await fetch("/api/youtube/logout", { method: "POST" })
+    setYoutubeConnected(false)
+    setYoutubeChannels([])
+    setSelectedYoutubeChannel("")
+    localStorage.removeItem("cosmos-youtube-selected-channel")
+    setYoutubeMessage("YouTube disconnected from this browser.")
+  }
+
   function openYoutubeStudio() {
     loadYoutubeAssets()
     setYoutubeStudioOpen(true)
+    void loadYoutubeChannels()
   }
   async function brainstorm() {
     setIdeasLoading(true)
@@ -471,12 +520,47 @@ export default function CosmosStudio() {
     }
   }
 
+  const selectedChannel = youtubeChannels.find((channel) => channel.id === selectedYoutubeChannel)
+
   const youtubeStudioModal = youtubeStudioOpen ? (
     <div className="modal-backdrop" role="dialog" aria-modal="true">
       <div className="modal" style={{ maxWidth: 900, width: "94vw" }}>
         <div className="modal-head">
           <div><span className="eyebrow">Saved production assets</span><h2>YouTube Studio</h2><p>Assets you explicitly selected are kept here for this production.</p></div>
           <button className="icon-button" type="button" onClick={() => setYoutubeStudioOpen(false)} aria-label="Close">×</button>
+        </div>
+        <div style={{ marginBottom: 18, border: "1px solid #d7e9e8", borderRadius: 14, padding: 16, background: "#f7fbfb" }}>
+          {!youtubeConnected ? (
+            <div>
+              <h3 style={{ marginTop: 0 }}>Connect your YouTube account</h3>
+              <p className="field-hint">Sign in with Google. The Studio will then show the YouTube channels available to that Google account.</p>
+              <button className="primary" type="button" onClick={connectYoutube} disabled={youtubeLoading}>{youtubeLoading ? "Connecting..." : "Connect YouTube"}</button>
+            </div>
+          ) : youtubeChannels.length === 0 ? (
+            <div>
+              <h3 style={{ marginTop: 0 }}>No available channels</h3>
+              <p className="field-hint">The connected Google account did not return a YouTube channel that this API connection can manage.</p>
+              <button className="search" type="button" onClick={() => void loadYoutubeChannels()}>Refresh channels</button>
+            </div>
+          ) : (
+            <div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                <div>
+                  <div className="field-label">CURRENT YOUTUBE CHANNEL</div>
+                  <strong>{selectedChannel?.title || "Choose a channel"}</strong>
+                  <div className="field-hint">Publishing will target this channel only.</div>
+                </div>
+                <button className="search" type="button" onClick={disconnectYoutube}>Disconnect</button>
+              </div>
+              <div className="field" style={{ marginTop: 12 }}>
+                <label htmlFor="youtube-channel-select">Target channel</label>
+                <select id="youtube-channel-select" value={selectedYoutubeChannel} onChange={(event) => chooseYoutubeChannel(event.target.value)}>
+                  {youtubeChannels.map((channel) => <option key={channel.id} value={channel.id}>{channel.title}</option>)}
+                </select>
+              </div>
+              {youtubeMessage && <p className="field-hint">{youtubeMessage}</p>}
+            </div>
+          )}
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 14 }}>
           {youtubeAssets.length === 0 ? <div style={{ gridColumn: "1/-1" }}><h3>No saved assets yet</h3><p>Generate an image, video or thumbnail, then click <strong>Select</strong>.</p></div> :
