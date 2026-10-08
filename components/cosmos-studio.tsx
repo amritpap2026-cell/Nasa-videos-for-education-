@@ -307,11 +307,17 @@ export default function CosmosStudio() {
 
   function saveToYoutubeStudio(items: Array<{ index: number; url: string; type?: string; sceneIds?: string[]; finalStart?: string; finalEnd?: string; sourceStart?: string; sourceEnd?: string }>) {
     const now = new Date().toISOString()
-    const additions = items.filter((item) => item.url).map((item) => ({
+    const additions: StudioAsset[] = items.filter((item) => item.url).map((item) => ({
       id: "asset-" + Date.now() + "-" + item.index + "-" + Math.random().toString(36).slice(2, 8),
       type: item.type || assetType,
       name: (topic.trim() || "Untitled") + " — " + (item.type || assetType) + " " + item.index,
-      url: item.url, createdAt: now,
+      url: item.url,
+      createdAt: now,
+      sceneIds: item.sceneIds,
+      finalStart: item.finalStart,
+      finalEnd: item.finalEnd,
+      sourceStart: item.sourceStart,
+      sourceEnd: item.sourceEnd,
     }))
     try {
       const existing = JSON.parse(localStorage.getItem("cosmos-youtube-studio-assets") || "[]")
