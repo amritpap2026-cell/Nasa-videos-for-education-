@@ -2,8 +2,15 @@ import { NextResponse } from "next/server"
 
 export const maxDuration = 300
 
-const IMAGE_MODEL = "gemini-3.1-flash-image"
-const VIDEO_MODEL = "veo-3.1-generate-preview"
+const IMAGE_MODELS = [
+  "gemini-3.1-flash-image",
+  "gemini-2.5-flash-image",
+  "gemini-3-pro-image",
+]
+const VIDEO_MODELS = [
+  "gemini-omni-1.1-flash",
+  "veo-3.1-generate-preview",
+]
 function key() { return (process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY || "").trim() }
 
 async function textGenerate(apiKey: string, prompt: string) {
@@ -20,37 +27,66 @@ async function textGenerate(apiKey: string, prompt: string) {
 }
 
 async function imageGenerate(apiKey: string, prompt: string, thumbnail: boolean) {
-  const r = await fetch("https://generativelanguage.googleapis.com/v1beta/interactions", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-    body: JSON.stringify({
-      model: IMAGE_MODEL,
-      input: prompt,
-      response_format: {
-        type: "image",
-        mime_type: "image/jpeg",
-        aspect_ratio: "16:9",
-        image_size: thumbnail ? "2K" : "1K",
-      },
-    }),
-    signal: AbortSignal.timeout(120000),
-  })
-  const d = await r.json().catch(() => ({}))
-  if (!r.ok) throw new Error(d?.error?.message || "Image generation failed.")
-  const image = d?.output_image
-  if (!image?.data) throw new Error("The image model returned no image.")
-  return { kind: "image", data: image.data, mimeType: image.mime_type || "image/jpeg", model: IMAGE_MODEL }
+  let lastError = "Image generation failed."
+  for (const model of IMAGE_MODELS) {
+    try {
+      const r = await fetch("https://generativelanguage.googleapis.com/v1beta/interactions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+        body: JSON.stringify({
+          model,
+          input: prompt,
+          response_format: {
+            type: "image",
+            mime_type: "image/jpeg",
+            aspect_ratio: "16:9",
+            image_size: thumbnail ? "2K" : "1K",
+          },
+        }),
+        signal: AbortSignal.timeout(120000),
+      })
+      const d = await r.json().catch(() => ({}))
+      if (!r.ok) {
+        lastError = d?.error?.message || `Image model ${model} failed.`
+        continue
+      }
+      const image = d?.output_image
+      if (!image?.data) {
+        lastError = `Image model ${model} returned no image.`
+        continue
+      }
+      return { kind: "image", data: image.data, mimeType: image.mime_type || "image/jpeg", model }
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : `Image model ${model} failed.`
+    }
+  }
+  throw new Error(lastError)
 }
 
 async function videoStart(apiKey: string, prompt: string) {
-  const r = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + VIDEO_MODEL + ":predictLongRunning", {
-    method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-    body: JSON.stringify({ instances: [{ prompt }], parameters: { aspectRatio: "16:9", resolution: "720p", numberOfVideos: 1 } }),
-    signal: AbortSignal.timeout(30000),
-  })
-  const d = await r.json().catch(() => ({}))
-  if (!r.ok || !d?.name) throw new Error(d?.error?.message || "Video generation could not be started.")
-  return { kind: "video", operation: d.name, model: VIDEO_MODEL }
+  let lastError = "Video generation could not be started."
+  for (const model of VIDEO_MODELS) {
+    try {
+      const r = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + model + ":predictLongRunning", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+        body: JSON.stringify({
+          instances: [{ prompt }],
+          parameters: { aspectRatio: "16:9", resolution: "720p", numberOfVideos: 1 },
+        }),
+        signal: AbortSignal.timeout(30000),
+      })
+      const d = await r.json().catch(() => ({}))
+      if (!r.ok || !d?.name) {
+        lastError = d?.error?.message || `Video model ${model} failed to start.`
+        continue
+      }
+      return { kind: "video", operation: d.name, model }
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : `Video model ${model} failed to start.`
+    }
+  }
+  throw new Error(lastError)
 }
 
 async function videoStatus(apiKey: string, operation: string) {
