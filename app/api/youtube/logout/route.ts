@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { cookieOptions, youtubeCookieNames } from "../../../lib/youtube-auth"
+import { cookieOptions, youtubeCookieNames } from "../../../../lib/youtube-auth"
 
 export async function POST() {
   const response = NextResponse.json({ ok: true })
