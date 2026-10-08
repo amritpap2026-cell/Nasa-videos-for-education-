@@ -390,8 +390,8 @@ export default function CosmosStudio() {
       if (!response.ok || !data.audio) throw new Error(data.error || "Voiceover generation failed")
       const bytes = Uint8Array.from(atob(data.audio), (character) => character.charCodeAt(0))
       if (audioUrl) URL.revokeObjectURL(audioUrl)
-      setAudioUrl(URL.createObjectURL(new Blob([bytes], { type: data.mimeType || "audio/wav" })))
-      const generatedVoiceUrl = audioUrl || ""
+      const generatedVoiceUrl = URL.createObjectURL(new Blob([bytes], { type: data.mimeType || "audio/wav" }))
+      setAudioUrl(generatedVoiceUrl)
       updateProject({ voiceoverUrl: generatedVoiceUrl, status: "assets-ready" })
       setVoiceoverUsed(false)
       setStatus("Voiceover created. Listen below, then choose Use this voiceover.")
