@@ -5,6 +5,25 @@ import { ArrowRight, Check, Film, Globe2, Image as ImageIcon, Lightbulb, Search,
 
 type Result = { text: string; model: string; notice?: string }
 
+type StudioTimelineItem = {
+  sceneId: string
+  finalStart: string
+  finalEnd: string
+  duration: number
+  narrationRange: string
+  visualType: string
+  assetId: string
+  visualStart: string
+  visualEnd: string
+  sourceStart: string
+  sourceEnd: string
+  motionGraphicStart: string
+  motionGraphicEnd: string
+  onScreenTextStart: string
+  onScreenTextEnd: string
+  planned: boolean
+}
+
 type StudioAsset = {
   id: string
   type: string
@@ -13,6 +32,11 @@ type StudioAsset = {
   createdAt: string
   selected?: boolean
   operation?: string
+  sceneIds?: string[]
+  finalStart?: string
+  finalEnd?: string
+  sourceStart?: string
+  sourceEnd?: string
 }
 
 type StudioProject = {
@@ -30,6 +54,7 @@ type StudioProject = {
   research: string
   script: string
   storyboard: string
+  timeline: StudioTimelineItem[]
   voiceoverUrl: string
   youtube: {
     title: string
@@ -120,6 +145,7 @@ export default function CosmosStudio() {
       research: "",
       script: "",
       storyboard: "",
+      timeline: [],
       voiceoverUrl: "",
       youtube: { title: "", description: "", tags: [], thumbnailUrl: "", captionsUrl: "", playlistId: "" },
       assets: [],
@@ -127,6 +153,50 @@ export default function CosmosStudio() {
     }
     localStorage.setItem("cosmos-current-project", JSON.stringify(project))
     return project
+  }
+
+  function parseTimeline(packageText: string): StudioTimelineItem[] {
+    if (!packageText.trim()) return []
+    const rows = packageText.split(/\r?\n/).filter((line) => line.includes("TIMELINE_ROW"))
+    const parsed: StudioTimelineItem[] = []
+    for (const line of rows) {
+      const get = (key: string) => {
+        const match = line.match(new RegExp(key + '=([^|]+)'))
+        return match?.[1]?.trim().replace(/^"|"$/g, "") || ""
+      }
+      const start = get("final_start")
+      const end = get("final_end")
+      const duration = Number(get("duration")) || 0
+      const sceneId = get("scene_id")
+      if (!sceneId || !start || !end) continue
+      parsed.push({
+        sceneId,
+        finalStart: start,
+        finalEnd: end,
+        duration,
+        narrationRange: get("narration_range"),
+        visualType: get("visual_type"),
+        assetId: get("asset_id"),
+        visualStart: get("visual_start") || start,
+        visualEnd: get("visual_end") || end,
+        sourceStart: get("source_start"),
+        sourceEnd: get("source_end"),
+        motionGraphicStart: get("motion_graphic_start"),
+        motionGraphicEnd: get("motion_graphic_end"),
+        onScreenTextStart: "",
+        onScreenTextEnd: "",
+        planned: true,
+      })
+    }
+    return parsed
+  }
+
+  function findTimelineForPrompt(prompt: string): StudioTimelineItem[] {
+    const timeline = currentProject?.timeline || parseTimeline(result?.text || "")
+    if (!timeline.length) return []
+    const ids = [...prompt.matchAll(/SCENE[_ -]?(\d{1,4})/gi)].map((m) => "SCENE_" + String(Number(m[1])).padStart(3, "0"))
+    const matched = timeline.filter((item) => ids.includes(item.sceneId))
+    return matched.length ? matched : timeline.slice(0, 1)
   }
 
   function updateProject(patch: Partial<StudioProject>) {
@@ -279,13 +349,16 @@ export default function CosmosStudio() {
       }
       setResult(data)
       setStoryText("")
+      const generatedPackage = data?.text || ""
       updateProject({
         topic: topic.trim(),
         language,
         gradeLevel,
         length,
         packageType,
-        script: data?.text || "",
+        script: generatedPackage,
+        storyboard: generatedPackage,
+        timeline: parseTimeline(generatedPackage),
         status: "review",
       })
     } catch (error) {
@@ -542,6 +615,7 @@ export default function CosmosStudio() {
           prompt: assetPrompt.trim(),
           count: assetCount,
           package: result?.text || "",
+        timeline: currentProject?.timeline || parseTimeline(result?.text || ""),
         }),
       })
       const data = await response.json()
