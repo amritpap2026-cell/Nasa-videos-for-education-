@@ -158,7 +158,7 @@ async function geminiImageGenerateWithKey(apiKey: string, prompt: string, thumbn
   throw new Error(lastError)
 }
 
-async function geminiImageGenerate(prompt: string, thumbnail: boolean) {
+async function runGeminiImageGenerate(prompt: string, thumbnail: boolean) {
   return withGeminiRotation(async (apiKey, keyIndex) => {
     const result = await geminiImageGenerateWithKey(apiKey, prompt, thumbnail)
     return { ...result, geminiKeyIndex: keyIndex }
@@ -198,7 +198,7 @@ async function geminiVideoStartWithKey(apiKey: string, prompt: string) {
   throw new Error(lastError)
 }
 
-async function geminiVideoStart(prompt: string) {
+async function startGeminiVideo(prompt: string) {
   return withGeminiRotation((apiKey, keyIndex) =>
     geminiVideoStartWithKey(apiKey, prompt).then((result) => ({
       ...result,
@@ -207,7 +207,7 @@ async function geminiVideoStart(prompt: string) {
   )
 }
 
-async function geminiVideoStatus(apiKey: string, operationName: string) {
+async function checkGeminiVideoStatus(apiKey: string, operationName: string) {
   const r = await fetch(
     "https://generativelanguage.googleapis.com/v1beta/" +
       operationName +
@@ -300,7 +300,7 @@ async function json2VideoStart(prompt: string) {
 
 async function imageGenerate(prompt: string, thumbnail: boolean) {
   const providers: Array<[string, () => Promise<any>]> = []
-  if (geminiKeys().length) providers.push(["Gemini", () => geminiImageGenerate(prompt, thumbnail)])
+  if (geminiKeys().length) providers.push(["Gemini", () => runGeminiImageGenerate(prompt, thumbnail)])
   if (cloudflareConfig().account && cloudflareConfig().token) providers.push(["Cloudflare", () => cloudflareImageGenerate(prompt)])
   if (hfToken()) providers.push(["HuggingFace", () => huggingFaceImageGenerate(prompt)])
   if (pollinationsKey()) providers.push(["Pollinations", () => pollinationsImageGenerate(prompt)])
@@ -316,7 +316,7 @@ async function imageGenerate(prompt: string, thumbnail: boolean) {
 async function videoStart(prompt: string) {
   const errors: string[] = []
   if (geminiKeys().length) {
-    try { return await geminiVideoStart(prompt) }
+    try { return await startGeminiVideo(prompt) }
     catch (e) { errors.push("Gemini: " + (e instanceof Error ? e.message : "failed")) }
   }
   if (pollinationsKey()) {
@@ -337,7 +337,7 @@ async function videoStatus(operation: string) {
     const operationName = parts.slice(2).join(":")
     const key = geminiKeys().find((k) => k.index === keyIndex)?.value
     if (!key) throw new Error("The Gemini key used for this video is no longer configured.")
-    return geminiVideoStatus(key, operationName)
+    return checkGeminiVideoStatus(key, operationName)
   }
   if (operation.startsWith("pollinations:")) return { done: true, failed: false, error: "", videoUri: Buffer.from(operation.slice("pollinations:".length), "base64url").toString("utf8") }
   if (operation.startsWith("json2video:")) {
