@@ -123,35 +123,64 @@ FULL WORD-FOR-WORD SCRIPT (STORYTELLING SCRIPT)
 The text between the markers contains ONLY narration. No title, metadata, headings, timestamps, camera directions, music, SFX, visual notes, citations, calls to action or production instructions.
 
 COMPLETE TIMESTAMPED STORYBOARD / FINAL TIMELINE
-Create the complete final-video timeline from 00:00 to the requested end time.
-For every scene/shot provide:
-SCENE/SHOT
-FINAL TIMESTAMP
+Create the complete final-video timeline from 00:00 to the requested end time. This is the MASTER EDITING TIMELINE and the timestamps in it are the canonical planned placement for every visual and audio element. Do not create separate incompatible clocks for different sections.
+
+For EVERY scene/shot provide:
+SCENE/SHOT ID (stable ID such as SCENE_001, SCENE_002; never reuse an ID)
+FINAL TIMESTAMP: START → END
 DURATION
-NARRATION RANGE
-VISUAL
-CAMERA/COMPOSITION
-TRANSITION
-ON-SCREEN TEXT
-SFX
-MUSIC
+NARRATION RANGE: exact spoken words or an unambiguous beginning/end phrase
+VISUAL TYPE: AI_IMAGE / AI_VIDEO / STOCK / NASA / ARCHIVAL / MOTION_GRAPHIC / SCREEN_RECORDING / COMBINATION
+ASSET ID / PLANNED ASSET ID
+VISUAL START → END
+VISUAL DURATION
+VISUAL PROMPT OR SOURCE SEARCH QUERY
 SOURCE TYPE
-SOURCE SEARCH TERMS
-SOURCE CLIP START/END IF KNOWN
+SOURCE CLIP START → END IF USING AN EXTERNAL CLIP
+CAMERA / COMPOSITION
+MOTION / KEN BURNS / ZOOM / PAN
+ON-SCREEN TEXT START → END
+CAPTION / SUBTITLE RANGE
+MOTION GRAPHIC START → END
+SFX START → END
+MUSIC START → END
+TRANSITION IN
+TRANSITION OUT
+CONTINUITY NOTES
+FALLBACK VISUAL
+
+TIMELINE SYNCHRONIZATION RULES — MANDATORY:
+1. FINAL TIMESTAMP is the placement on the finished video timeline, not the timestamp inside a source clip.
+2. Every generated or sourced asset MUST be assigned to one or more exact scene IDs and exact FINAL START → END times.
+3. AI_IMAGE assets are still images placed on the timeline for their assigned interval; specify their display duration and any crop/zoom/pan.
+4. AI_VIDEO assets are generated clips placed on the timeline for their assigned interval. If the generated clip is shorter than the assigned interval, specify loop/extend/freeze/cut behavior; if longer, specify the exact trim interval.
+5. STOCK/NASA/ARCHIVAL assets have TWO clocks when applicable: the FINAL VIDEO TIMELINE and the SOURCE CLIP TIMELINE. Always distinguish them. Example: FINAL 00:42–00:49 uses SOURCE 01:13–01:20 from the selected footage.
+6. MOTION_GRAPHIC assets are overlays with their own START → END interval and may overlap the underlying AI image/video/stock footage.
+7. ON-SCREEN TEXT, subtitles, captions, SFX and music are timeline layers and may overlap visuals.
+8. Scene boundaries must cover the narration continuously with no unexplained gaps or overlaps. Visual changes should support the narration rather than occur at arbitrary timestamps.
+9. If the final voiceover duration is not yet measured, timestamps are PLANNED timestamps derived from narration word count. Clearly label them PLANNED. After real TTS/voiceover is generated, the application must use the measured voiceover duration as the authoritative clock and retime scene boundaries proportionally or by narration-range anchors.
+10. Never move an asset merely because its source clip has a different timestamp. Source timestamps describe where to take footage FROM; FINAL timestamps describe where to place it.
+11. For each scene, the same SCENE ID must be reused across the storyboard, AI image prompts, AI video prompts, stock footage plan and motion graphics plan.
+12. Every visual prompt must state its target SCENE ID and FINAL START → END.
+13. When multiple visual layers overlap, explicitly mark them as BASE VISUAL, OVERLAY, TEXT, GRAPHIC, CAPTION, SFX or MUSIC.
+14. The timeline must end at the requested final runtime and the FINAL COMPLETION AUDIT must verify coverage from 00:00 to that endpoint.
+
+A compact machine-readable line is REQUIRED for every scene:
+TIMELINE_ROW | scene_id=SCENE_001 | final_start=00:00.000 | final_end=00:07.800 | duration=7.800 | narration_range="..." | visual_type=AI_IMAGE | asset_id=ASSET_SCENE_001_IMAGE | visual_start=00:00.000 | visual_end=00:07.800 | source_start= | source_end= | motion_graphic_start= | motion_graphic_end=
 
 SOURCE TYPE may be NASA, ESA, government/archive, stock, AI_IMAGE, AI_VIDEO, MOTION_GRAPHIC, SCREEN_RECORDING or COMBINATION, depending on the topic.
 
 AI IMAGE GENERATION PROMPTS
-Create production-ready prompts for every scene requiring an AI image. Include subject, environment, composition, framing, lighting, factual/physical accuracy, continuity, 16:9 suitability and negative constraints.
+Create production-ready prompts for every scene requiring an AI image. Every prompt MUST include SCENE ID, FINAL START → END, target duration, asset ID, subject, environment, composition, framing, lighting, factual/physical accuracy, continuity, 16:9 suitability, motion treatment if used and negative constraints. The prompt is not complete unless its timeline assignment is explicit. Do not invent a timestamp that conflicts with COMPLETE TIMESTAMPED STORYBOARD / FINAL TIMELINE.
 
 AI VIDEO GENERATION PROMPTS
-Create production-ready prompts for every scene requiring AI video. Include subject action, environment, camera movement, framing, lighting, physics or realistic behavior, continuity, 16:9 suitability, duration and negative constraints.
+Create production-ready prompts for every scene requiring AI video. Every prompt MUST include SCENE ID, FINAL START → END, target duration, asset ID, subject action, environment, camera movement, framing, lighting, physics or realistic behavior, continuity, 16:9 suitability, exact generation duration and negative constraints. If the generated clip duration differs from final placement, specify trim, loop, freeze or extension behavior. Do not invent a timestamp that conflicts with COMPLETE TIMESTAMPED STORYBOARD / FINAL TIMELINE.
 
 REAL / ARCHIVAL / STOCK FOOTAGE PLAN
-For each real-footage scene specify ideal footage, search terms, preferred source, rights consideration and why it supports the narration. Never assume online footage is free to reuse.
+For each real-footage scene specify SCENE ID, FINAL START → END, ideal footage, source search terms, preferred source, rights consideration, why it supports the narration, and SOURCE CLIP START → END when known. Keep FINAL VIDEO TIME and SOURCE FOOTAGE TIME as separate fields. A source clip timestamp must never be mistaken for the final-video timestamp. Never assume online footage is free to reuse.
 
 MOTION GRAPHICS + DATA VISUALIZATION
-Specify useful diagrams, scale comparisons, maps, timelines, processes, data visualizations, charts and annotations, with text, layout, animation and timing.
+Specify SCENE ID, FINAL START → END and useful diagrams, scale comparisons, maps, timelines, processes, data visualizations, charts and annotations, with exact overlay timing, text, layout, animation, transition and factual/source constraints. Motion graphics may overlap a base visual and must identify that relationship.
 
 ON-SCREEN TEXT + SUBTITLES
 Create important labels, numbers, dates, names, questions, captions and subtitle guidance. Keep text mobile-readable.
