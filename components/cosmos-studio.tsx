@@ -47,6 +47,8 @@ export default function CosmosStudio() {
   const [assetOutput, setAssetOutput] = useState("")
   const [assetOperation, setAssetOperation] = useState("")
   const [assetSelected, setAssetSelected] = useState(false)
+  const [assetCount, setAssetCount] = useState(1)
+  const [assetOutputs, setAssetOutputs] = useState<Array<{ index: number; url: string; operation?: string; error?: string }>>([])
 
   // Visuals (Step 3) — independent modal
   const [visualsOpen, setVisualsOpen] = useState(false)
@@ -304,11 +306,39 @@ export default function CosmosStudio() {
     setAssetText("The main script does not contain the required " + type.toUpperCase() + " header. Regenerate with Scriptwriter or Master Prompt first.")
   }
 
+  function saveUrl(url: string, filename: string) {
+    const a = document.createElement("a")
+    a.href = url
+    a.download = filename
+    a.rel = "noopener"
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+  }
+
+  async function waitForVideo(operation: string, index: number) {
+    for (let attempt = 0; attempt < 120; attempt++) {
+      const response = await fetch("/api/assets?action=video-status&operation=" + encodeURIComponent(operation), { cache: "no-store" })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || "Could not check video status")
+      if (data.failed) throw new Error(data.error || "Video generation failed")
+      if (data.done && data.videoUri) {
+        const url = "/api/assets?action=video-download&operation=" + encodeURIComponent(operation)
+        setAssetOutputs((current) => current.map((item) => item.index === index ? { ...item, url } : item))
+        saveUrl(url, "cosmos-" + assetType + "-" + index + ".mp4")
+        return
+      }
+      await new Promise((resolve) => setTimeout(resolve, 5000))
+    }
+    throw new Error("Video generation timed out while waiting for completion.")
+  }
+
   async function generateRealAsset() {
     if (!assetPrompt.trim()) return
     setAssetLoading(true)
     setAssetOutput("")
     setAssetOperation("")
+    setAssetOutputs([])
     setAssetSelected(false)
     try {
       const response = await fetch("/api/assets", {
@@ -320,16 +350,46 @@ export default function CosmosStudio() {
           topic: topic.trim(),
           language,
           prompt: assetPrompt.trim(),
+          count: assetCount,
           package: result?.text || "",
         }),
       })
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || "Real generation failed")
-      if (data.kind === "image") {
-        setAssetOutput("data:" + (data.mimeType || "image/jpeg") + ";base64," + data.data)
+
+      if (data.kind === "batch") {
+        const initial = (data.items || []).map((item: any) => {
+          if (item.error) return { index: item.index, url: "", error: item.error }
+          if (item.kind === "image") {
+            const url = "data:" + (item.mimeType || "image/jpeg") + ";base64," + item.data
+            saveUrl(url, "cosmos-" + assetType + "-" + item.index + ".jpg")
+            return { index: item.index, url }
+          }
+          return { index: item.index, url: "", operation: item.operation }
+        })
+        setAssetOutputs(initial)
+        setAssetText(
+          assetType === "video"
+            ? "Video batch started. Each completed video will be checked automatically and saved to your device."
+            : data.count + " different " + assetType + "s generated from the same fixed prompt and saved to your device."
+        )
+        if (assetType === "video") {
+          await Promise.all(
+            initial.filter((item: any) => item.operation).map((item: any) => waitForVideo(item.operation, item.index))
+          )
+          setAssetText("All completed videos have been automatically saved to your device.")
+        }
+      } else if (data.kind === "image") {
+        const url = "data:" + (data.mimeType || "image/jpeg") + ";base64," + data.data
+        setAssetOutput(url)
+        saveUrl(url, "cosmos-" + assetType + "-1.jpg")
+        setAssetText("Generated and automatically saved.")
       } else if (data.kind === "video") {
         setAssetOperation(data.operation || "")
-        setAssetText("Video generation started. This can take several minutes. Keep this window open and press Check video status.")
+        setAssetText("Video generation started. It will be checked automatically and saved when ready.")
+        await waitForVideo(data.operation || "", 1)
+        setAssetOutput("/api/assets?action=video-download&operation=" + encodeURIComponent(data.operation || ""))
+        setAssetText("Video is ready and automatically saved to your device.")
       } else if (data.kind === "motion") {
         setAssetOutput("data:image/svg+xml;charset=utf-8," + encodeURIComponent(data.svg || ""))
       } else if (data.kind === "seo") {
@@ -346,17 +406,10 @@ export default function CosmosStudio() {
     if (!assetOperation) return
     setAssetLoading(true)
     try {
-      const response = await fetch("/api/assets?action=video-status&operation=" + encodeURIComponent(assetOperation))
-      const data = await response.json()
-      if (!response.ok) throw new Error(data.error || "Could not check video status")
-      if (data.done && data.videoUri) {
-        setAssetOutput("/api/assets?action=video-download&operation=" + encodeURIComponent(assetOperation))
-        setAssetText("Video is ready. Preview it below, then click Select.")
-      } else if (data.failed) {
-        throw new Error(data.error || "Video generation failed")
-      } else {
-        setAssetText("Video is still generating. Wait a little longer and check again.")
-      }
+      await waitForVideo(assetOperation, 1)
+      const url = "/api/assets?action=video-download&operation=" + encodeURIComponent(assetOperation)
+      setAssetOutput(url)
+      setAssetText("Video is ready and automatically saved to your device.")
     } catch (error) {
       setAssetText(error instanceof Error ? error.message : "Could not check video status.")
     } finally {
@@ -370,7 +423,7 @@ export default function CosmosStudio() {
   }
 
   function openAssets(type: "image" | "video" | "thumbnail" | "seo" | "motion") {
-    setAssetType(type); setAssetOpen(true); setAssetSelected(false); setAssetOutput(""); setAssetOperation("")
+    setAssetType(type); setAssetOpen(true); setAssetSelected(false); setAssetOutput(""); setAssetOperation(""); setAssetOutputs([]); setAssetCount(type === "seo" || type === "motion" ? 1 : 10)
     if (topic.trim().length >= 3) void generateAsset(type)
   }
 
@@ -788,6 +841,20 @@ export default function CosmosStudio() {
             </div>
 
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              {(assetType === "image" || assetType === "video" || assetType === "thumbnail") && (
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <label htmlFor="asset-count"><strong>Number</strong></label>
+                  <select
+                    id="asset-count"
+                    value={assetCount}
+                    onChange={(e) => setAssetCount(Math.max(1, Math.min(10, Number(e.target.value))))}
+                    disabled={assetLoading}
+                    aria-label={"Number of " + assetType + "s to generate"}
+                  >
+                    {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => <option key={n} value={n}>{n}</option>)}
+                  </select>
+                </div>
+              )}
               <button className="generate" type="button" onClick={generateRealAsset} disabled={assetLoading || !assetPrompt.trim()}>
                 {assetLoading ? "Generating..." : "Generate"}
               </button>
@@ -803,16 +870,33 @@ export default function CosmosStudio() {
 
             {assetText && <p className="status" role="status" style={{ marginTop: 12 }}>{assetText}</p>}
 
-            {assetOutput && assetType !== "seo" && assetType !== "motion" && (
+            {assetOutputs.length > 0 && assetType !== "seo" && assetType !== "motion" && (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12, marginTop: 16 }}>
+                {assetOutputs.map((item) => (
+                  <div key={item.index} style={{ border: "1px solid #d7e9e8", borderRadius: 12, padding: 8, background: "#fff" }}>
+                    <strong style={{ display: "block", marginBottom: 6 }}>Variation {item.index}</strong>
+                    {item.error ? (
+                      <p className="field-hint">{item.error}</p>
+                    ) : item.url ? (
+                      assetType === "video" ? (
+                        <video controls src={item.url} style={{ width: "100%", borderRadius: 8, display: "block" }} />
+                      ) : (
+                        <img src={item.url} alt={"Generated " + assetType + " variation " + item.index} style={{ width: "100%", borderRadius: 8, display: "block" }} />
+                      )
+                    ) : (
+                      <p className="field-hint">Generating…</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {assetOutput && assetType !== "seo" && assetType !== "motion" && assetOutputs.length === 0 && (
               <div style={{ marginTop: 16 }}>
                 {assetType === "video" ? (
                   <video controls src={assetOutput} style={{ width: "100%", borderRadius: 12, display: "block" }} />
                 ) : (
-                  <img
-                    src={assetOutput}
-                    alt="Generated AI asset"
-                    style={{ width: "100%", borderRadius: 12, display: "block" }}
-                  />
+                  <img src={assetOutput} alt="Generated AI asset" style={{ width: "100%", borderRadius: 12, display: "block" }} />
                 )}
               </div>
             )}
