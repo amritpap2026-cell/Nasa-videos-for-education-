@@ -172,10 +172,10 @@ async function geminiVideoStartWithKey(apiKey: string, prompt: string) {
       const r = await fetch(
         "https://generativelanguage.googleapis.com/v1beta/models/" +
           encodeURIComponent(model) +
-          ":predictLongRunning?key=" + encodeURIComponent(apiKey),
+          ":predictLongRunning",
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
           body: JSON.stringify({
             instances: [{ prompt }],
             parameters: { aspectRatio: "16:9" },
@@ -219,6 +219,7 @@ async function checkGeminiVideoStatus(apiKey: string, operationName: string) {
   const done = Boolean(d?.done)
   const error = d?.error?.message || ""
   const uri =
+    d?.response?.generateVideoResponse?.generatedSamples?.[0]?.video?.uri ||
     d?.response?.generatedVideos?.[0]?.video?.uri ||
     d?.response?.generated_videos?.[0]?.video?.uri ||
     d?.response?.video?.uri ||
@@ -361,6 +362,29 @@ async function promptFor(type: string, topic: string, packageText: string, langu
   return textGenerate(instruction + "\n\nTOPIC: " + topic + "\nLANGUAGE: " + language + "\n\nSOURCE VIDEO PACKAGE:\n" + packageText.slice(0, 50000))
 }
 
+async function generateMany(type: "image" | "video" | "thumbnail", prompt: string, count: number) {
+  const total = Math.max(1, Math.min(10, Math.floor(count || 1)))
+  const jobs = Array.from({ length: total }, (_, index) => {
+    const variationPrompt =
+      prompt +
+      "\n\nFIXED VARIATION INSTRUCTION: Generate a different " +
+      (type === "video" ? "video" : "image") +
+      " from above. Keep the same subject, story, style, factual meaning, aspect ratio and visual quality, but change the composition, camera angle, framing, lighting, motion or environmental details. This is variation " +
+      (index + 1) + " of " + total + ". Never return a duplicate of another variation."
+    return (async () => {
+      if (type === "video") return await videoStart(variationPrompt)
+      return await imageGenerate(variationPrompt, type === "thumbnail")
+    })()
+  })
+  const settled = await Promise.allSettled(jobs)
+  const items = settled.map((result, index) =>
+    result.status === "fulfilled"
+      ? { index: index + 1, ...result.value }
+      : { index: index + 1, error: result.reason instanceof Error ? result.reason.message : "Generation failed." }
+  )
+  return { kind: "batch", assetType: type, count: total, items }
+}
+
 export async function POST(request: Request) {
   try {
     const b = await request.json()
@@ -382,8 +406,12 @@ export async function POST(request: Request) {
     const prompt = String(b?.prompt || "").trim()
     if (!prompt) return NextResponse.json({ error: "Add a generation prompt first." }, { status: 400 })
 
-    if (type === "image" || type === "thumbnail") return NextResponse.json(await imageGenerate(prompt, type === "thumbnail"))
-    if (type === "video") return NextResponse.json(await videoStart(prompt))
+    const count = Math.max(1, Math.min(10, Number(b?.count) || 1))
+    if (type === "image" || type === "thumbnail" || type === "video") {
+      if (count > 1) return NextResponse.json(await generateMany(type, prompt, count))
+      if (type === "image" || type === "thumbnail") return NextResponse.json(await imageGenerate(prompt, type === "thumbnail"))
+      return NextResponse.json(await videoStart(prompt))
+    }
     if (type === "seo") return NextResponse.json({ kind: "seo", text: await textGenerate(prompt) })
 
     const svg = await textGenerate(
