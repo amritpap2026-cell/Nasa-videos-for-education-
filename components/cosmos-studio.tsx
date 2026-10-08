@@ -49,6 +49,8 @@ export default function CosmosStudio() {
   const [assetSelected, setAssetSelected] = useState(false)
   const [assetCount, setAssetCount] = useState(1)
   const [assetOutputs, setAssetOutputs] = useState<Array<{ index: number; url: string; operation?: string; error?: string }>>([])
+  const [youtubeStudioOpen, setYoutubeStudioOpen] = useState(false)
+  const [youtubeAssets, setYoutubeAssets] = useState<Array<{ id: string; type: string; name: string; url: string; createdAt: string }>>([])
 
   // Visuals (Step 3) — independent modal
   const [visualsOpen, setVisualsOpen] = useState(false)
@@ -57,6 +59,35 @@ export default function CosmosStudio() {
   const [visuals, setVisuals] = useState<VisualItem[]>([])
   const [visualNotice, setVisualNotice] = useState("")
 
+  function loadYoutubeAssets() {
+    try {
+      const saved = JSON.parse(localStorage.getItem("cosmos-youtube-studio-assets") || "[]")
+      setYoutubeAssets(Array.isArray(saved) ? saved : [])
+    } catch { setYoutubeAssets([]) }
+  }
+
+  function saveToYoutubeStudio(items: Array<{ index: number; url: string; type?: string }>) {
+    const now = new Date().toISOString()
+    const additions = items.filter((item) => item.url).map((item) => ({
+      id: "asset-" + Date.now() + "-" + item.index + "-" + Math.random().toString(36).slice(2, 8),
+      type: item.type || assetType,
+      name: (topic.trim() || "Untitled") + " — " + (item.type || assetType) + " " + item.index,
+      url: item.url, createdAt: now,
+    }))
+    try {
+      const existing = JSON.parse(localStorage.getItem("cosmos-youtube-studio-assets") || "[]")
+      const next = [...(Array.isArray(existing) ? existing : []), ...additions]
+      localStorage.setItem("cosmos-youtube-studio-assets", JSON.stringify(next))
+      setYoutubeAssets(next)
+      setYoutubeStudioOpen(true)
+      setStatus(additions.length + " asset(s) saved to YouTube Studio.")
+    } catch { setStatus("Could not save assets to YouTube Studio in this browser.") }
+  }
+
+  function openYoutubeStudio() {
+    loadYoutubeAssets()
+    setYoutubeStudioOpen(true)
+  }
   async function brainstorm() {
     setIdeasLoading(true)
     setStatus("")
@@ -419,7 +450,11 @@ export default function CosmosStudio() {
 
   function selectAsset() {
     setAssetSelected(true)
-    setStatus(`${assetType.toUpperCase()} selected for this production.`)
+    const items = assetOutputs.length
+      ? assetOutputs.map((item) => ({ index: item.index, url: item.url, type: assetType }))
+      : assetOutput ? [{ index: 1, url: assetOutput, type: assetType }] : []
+    if (items.length) saveToYoutubeStudio(items)
+    else setStatus("Generate an asset first, then click Select.")
   }
 
   function openAssets(type: "image" | "video" | "thumbnail" | "seo" | "motion") {
@@ -436,6 +471,25 @@ export default function CosmosStudio() {
     }
   }
 
+  const youtubeStudioModal = youtubeStudioOpen ? (
+    <div className="modal-backdrop" role="dialog" aria-modal="true">
+      <div className="modal" style={{ maxWidth: 900, width: "94vw" }}>
+        <div className="modal-head">
+          <div><span className="eyebrow">Saved production assets</span><h2>YouTube Studio</h2><p>Assets you explicitly selected are kept here for this production.</p></div>
+          <button className="icon-button" type="button" onClick={() => setYoutubeStudioOpen(false)} aria-label="Close">×</button>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 14 }}>
+          {youtubeAssets.length === 0 ? <div style={{ gridColumn: "1/-1" }}><h3>No saved assets yet</h3><p>Generate an image, video or thumbnail, then click <strong>Select</strong>.</p></div> :
+            youtubeAssets.map((item) => <article key={item.id} style={{ border: "1px solid #d7e9e8", borderRadius: 14, padding: 10, background: "#fff" }}>
+              <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 7 }}>{item.type.toUpperCase()}</div>
+              {item.type === "video" ? <video controls src={item.url} style={{ width: "100%", borderRadius: 9 }} /> : <img src={item.url} alt={item.name} style={{ width: "100%", borderRadius: 9 }} />}
+              <div style={{ marginTop: 8, fontWeight: 650 }}>{item.name}</div><div className="field-hint">{new Date(item.createdAt).toLocaleString()}</div>
+            </article>)}
+        </div>
+      </div>
+    </div>
+  ) : null
+
   return (
     <main className="shell">
       <nav className="nav">
@@ -445,6 +499,7 @@ export default function CosmosStudio() {
           </span>{" "}
           Cosmos Studio
         </div>
+        <button className="create" onClick={openYoutubeStudio} style={{ marginRight: 8 }}>YouTube Studio</button>
         <button className="create" onClick={openCreator}>
           Create new videos <ArrowRight size={15} style={{ verticalAlign: "-2px" }} />
         </button>
@@ -1082,6 +1137,7 @@ export default function CosmosStudio() {
           </section>
         </div>
       )}
+      {youtubeStudioModal}
     </main>
   )
 }
