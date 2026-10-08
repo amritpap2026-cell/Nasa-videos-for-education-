@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { getSessionFromRequest } from "../../../lib/youtube-auth"
+import { getSessionFromRequest } from "../../../../lib/youtube-auth"
 
 export const dynamic = "force-dynamic"
 
