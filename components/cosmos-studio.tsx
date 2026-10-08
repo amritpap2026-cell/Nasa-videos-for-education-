@@ -253,8 +253,25 @@ export default function CosmosStudio() {
         planned: false,
       }
     })
+
+    // Retiming the final timeline also retimes final-video asset placement.
+    // Source clip timestamps are intentionally preserved: they refer to the
+    // original NASA/stock asset and are not part of the final-video clock.
+    const finalByScene = new Map(finalTimeline.map((item) => [item.sceneId, item]))
+    const finalAssets = (base.assets || []).map((asset) => {
+      const sceneId = asset.sceneIds?.[0]
+      const scene = sceneId ? finalByScene.get(sceneId) : undefined
+      if (!scene) return asset
+      return {
+        ...asset,
+        finalStart: scene.finalStart,
+        finalEnd: scene.finalEnd,
+      }
+    })
+
     updateProject({
       timeline: finalTimeline,
+      assets: finalAssets,
       voiceoverDurationSeconds: Number(durationSeconds.toFixed(3)),
       timelineFinalizedAt: new Date().toISOString(),
     })
