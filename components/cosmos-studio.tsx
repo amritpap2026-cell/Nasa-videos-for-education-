@@ -245,6 +245,11 @@ export default function CosmosStudio() {
         name: item.name,
         createdAt: item.createdAt,
         selected: false,
+        sceneIds: item.sceneIds,
+        finalStart: item.finalStart,
+        finalEnd: item.finalEnd,
+        sourceStart: item.sourceStart,
+        sourceEnd: item.sourceEnd,
       })))
       localStorage.setItem("cosmos-youtube-studio-assets", JSON.stringify(next))
       setYoutubeAssets(next)
