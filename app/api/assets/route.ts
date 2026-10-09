@@ -81,7 +81,7 @@ async function withGeminiRotation<T>(operation: (apiKey: string, keyIndex: numbe
 
 async function textGenerateWithKey(apiKey: string, prompt: string) {
   let lastError = "Gemini text generation failed."
-  const preferred = ["gemini-3.8-flash", "gemini-3.7-flash", "gemini-2.5-flash-lite", "gemini-2.5-flash"]
+  const preferred = ["gemini-2.5-flash-lite", "gemini-2.5-flash", "gemini-2.0-flash"]
   let models: string[] = []
   try {
     const listResponse = await fetch(
