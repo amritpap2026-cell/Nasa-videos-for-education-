@@ -298,28 +298,81 @@ export default function CosmosStudio() {
   const [visuals, setVisuals] = useState<VisualItem[]>([])
   const [visualNotice, setVisualNotice] = useState("")
 
-  function loadYoutubeAssets() {
+  function openStudioAssetDb(): Promise<IDBDatabase> {
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open("cosmos-studio-assets", 1)
+      request.onupgradeneeded = () => {
+        if (!request.result.objectStoreNames.contains("assets")) request.result.createObjectStore("assets")
+      }
+      request.onsuccess = () => resolve(request.result)
+      request.onerror = () => reject(request.error)
+    })
+  }
+
+  async function putStudioAsset(id: string, blob: Blob) {
+    const db = await openStudioAssetDb()
+    await new Promise<void>((resolve, reject) => {
+      const request = db.transaction("assets", "readwrite").objectStore("assets").put(blob, id)
+      request.onsuccess = () => resolve()
+      request.onerror = () => reject(request.error)
+    })
+    db.close()
+  }
+
+  async function getStudioAsset(id: string): Promise<Blob | null> {
+    const db = await openStudioAssetDb()
+    const blob = await new Promise<Blob | undefined>((resolve, reject) => {
+      const request = db.transaction("assets", "readonly").objectStore("assets").get(id)
+      request.onsuccess = () => resolve(request.result as Blob | undefined)
+      request.onerror = () => reject(request.error)
+    })
+    db.close()
+    return blob || null
+  }
+
+  async function resolveStudioAssetUrls(items: StudioAsset[]) {
+    return Promise.all(items.map(async (item) => {
+      if (!item.url.startsWith("idb:")) return item
+      try {
+        const blob = await getStudioAsset(item.url.slice(4))
+        return blob ? { ...item, url: URL.createObjectURL(blob) } : item
+      } catch { return item }
+    }))
+  }
+
+  async function loadYoutubeAssets() {
     try {
       const saved = JSON.parse(localStorage.getItem("cosmos-youtube-studio-assets") || "[]")
-      setYoutubeAssets(Array.isArray(saved) ? saved : [])
+      const items = Array.isArray(saved) ? saved as StudioAsset[] : []
+      setYoutubeAssets(await resolveStudioAssetUrls(items))
     } catch { setYoutubeAssets([]) }
   }
 
-  function saveToYoutubeStudio(items: Array<{ index: number; url: string; type?: string; sceneIds?: string[]; finalStart?: string; finalEnd?: string; sourceStart?: string; sourceEnd?: string }>) {
+  async function saveToYoutubeStudio(items: Array<{ index: number; url: string; type?: string; sceneIds?: string[]; finalStart?: string; finalEnd?: string; sourceStart?: string; sourceEnd?: string }>) {
     const now = new Date().toISOString()
-    const additions: StudioAsset[] = items.filter((item) => item.url).map((item) => ({
-      id: "asset-" + Date.now() + "-" + item.index + "-" + Math.random().toString(36).slice(2, 8),
-      type: item.type || assetType,
-      name: (topic.trim() || "Untitled") + " — " + (item.type || assetType) + " " + item.index,
-      url: item.url,
-      createdAt: now,
-      sceneIds: item.sceneIds,
-      finalStart: item.finalStart,
-      finalEnd: item.finalEnd,
-      sourceStart: item.sourceStart,
-      sourceEnd: item.sourceEnd,
-    }))
+    const additions: StudioAsset[] = []
     try {
+      for (const item of items.filter((entry) => entry.url)) {
+        const id = "asset-" + Date.now() + "-" + item.index + "-" + Math.random().toString(36).slice(2, 8)
+        let savedUrl = item.url
+        if (item.url.startsWith("data:")) {
+          const blob = await fetch(item.url).then((response) => response.blob())
+          await putStudioAsset(id, blob)
+          savedUrl = "idb:" + id
+        }
+        additions.push({
+          id,
+          type: item.type || assetType,
+          name: (topic.trim() || "Untitled") + " — " + (item.type || assetType) + " " + item.index,
+          url: savedUrl,
+          createdAt: now,
+          sceneIds: item.sceneIds,
+          finalStart: item.finalStart,
+          finalEnd: item.finalEnd,
+          sourceStart: item.sourceStart,
+          sourceEnd: item.sourceEnd,
+        })
+      }
       const existing = JSON.parse(localStorage.getItem("cosmos-youtube-studio-assets") || "[]")
       const next = [...(Array.isArray(existing) ? existing : []), ...additions]
       attachProjectAssets(additions.map((item) => ({
@@ -336,7 +389,7 @@ export default function CosmosStudio() {
         sourceEnd: item.sourceEnd,
       })))
       localStorage.setItem("cosmos-youtube-studio-assets", JSON.stringify(next))
-      setYoutubeAssets(next)
+      setYoutubeAssets(await resolveStudioAssetUrls(next))
       setYoutubeStudioOpen(true)
       setStatus(additions.length + " asset(s) saved to YouTube Studio.")
     } catch { setStatus("Could not save assets to YouTube Studio in this browser.") }
