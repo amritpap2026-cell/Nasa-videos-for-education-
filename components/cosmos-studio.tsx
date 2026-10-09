@@ -298,28 +298,81 @@ export default function CosmosStudio() {
   const [visuals, setVisuals] = useState<VisualItem[]>([])
   const [visualNotice, setVisualNotice] = useState("")
 
-  function loadYoutubeAssets() {
+  function openStudioAssetDb(): Promise<IDBDatabase> {
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open("cosmos-studio-assets", 1)
+      request.onupgradeneeded = () => {
+        if (!request.result.objectStoreNames.contains("assets")) request.result.createObjectStore("assets")
+      }
+      request.onsuccess = () => resolve(request.result)
+      request.onerror = () => reject(request.error)
+    })
+  }
+
+  async function putStudioAsset(id: string, blob: Blob) {
+    const db = await openStudioAssetDb()
+    await new Promise<void>((resolve, reject) => {
+      const request = db.transaction("assets", "readwrite").objectStore("assets").put(blob, id)
+      request.onsuccess = () => resolve()
+      request.onerror = () => reject(request.error)
+    })
+    db.close()
+  }
+
+  async function getStudioAsset(id: string): Promise<Blob | null> {
+    const db = await openStudioAssetDb()
+    const blob = await new Promise<Blob | undefined>((resolve, reject) => {
+      const request = db.transaction("assets", "readonly").objectStore("assets").get(id)
+      request.onsuccess = () => resolve(request.result as Blob | undefined)
+      request.onerror = () => reject(request.error)
+    })
+    db.close()
+    return blob || null
+  }
+
+  async function resolveStudioAssetUrls(items: StudioAsset[]) {
+    return Promise.all(items.map(async (item) => {
+      if (!item.url.startsWith("idb:")) return item
+      try {
+        const blob = await getStudioAsset(item.url.slice(4))
+        return blob ? { ...item, url: URL.createObjectURL(blob) } : item
+      } catch { return item }
+    }))
+  }
+
+  async function loadYoutubeAssets() {
     try {
       const saved = JSON.parse(localStorage.getItem("cosmos-youtube-studio-assets") || "[]")
-      setYoutubeAssets(Array.isArray(saved) ? saved : [])
+      const items = Array.isArray(saved) ? saved as StudioAsset[] : []
+      setYoutubeAssets(await resolveStudioAssetUrls(items))
     } catch { setYoutubeAssets([]) }
   }
 
-  function saveToYoutubeStudio(items: Array<{ index: number; url: string; type?: string; sceneIds?: string[]; finalStart?: string; finalEnd?: string; sourceStart?: string; sourceEnd?: string }>) {
+  async function saveToYoutubeStudio(items: Array<{ index: number; url: string; type?: string; sceneIds?: string[]; finalStart?: string; finalEnd?: string; sourceStart?: string; sourceEnd?: string }>) {
     const now = new Date().toISOString()
-    const additions: StudioAsset[] = items.filter((item) => item.url).map((item) => ({
-      id: "asset-" + Date.now() + "-" + item.index + "-" + Math.random().toString(36).slice(2, 8),
-      type: item.type || assetType,
-      name: (topic.trim() || "Untitled") + " — " + (item.type || assetType) + " " + item.index,
-      url: item.url,
-      createdAt: now,
-      sceneIds: item.sceneIds,
-      finalStart: item.finalStart,
-      finalEnd: item.finalEnd,
-      sourceStart: item.sourceStart,
-      sourceEnd: item.sourceEnd,
-    }))
+    const additions: StudioAsset[] = []
     try {
+      for (const item of items.filter((entry) => entry.url)) {
+        const id = "asset-" + Date.now() + "-" + item.index + "-" + Math.random().toString(36).slice(2, 8)
+        let savedUrl = item.url
+        if (item.url.startsWith("data:")) {
+          const blob = await fetch(item.url).then((response) => response.blob())
+          await putStudioAsset(id, blob)
+          savedUrl = "idb:" + id
+        }
+        additions.push({
+          id,
+          type: item.type || assetType,
+          name: (topic.trim() || "Untitled") + " — " + (item.type || assetType) + " " + item.index,
+          url: savedUrl,
+          createdAt: now,
+          sceneIds: item.sceneIds,
+          finalStart: item.finalStart,
+          finalEnd: item.finalEnd,
+          sourceStart: item.sourceStart,
+          sourceEnd: item.sourceEnd,
+        })
+      }
       const existing = JSON.parse(localStorage.getItem("cosmos-youtube-studio-assets") || "[]")
       const next = [...(Array.isArray(existing) ? existing : []), ...additions]
       attachProjectAssets(additions.map((item) => ({
@@ -336,7 +389,7 @@ export default function CosmosStudio() {
         sourceEnd: item.sourceEnd,
       })))
       localStorage.setItem("cosmos-youtube-studio-assets", JSON.stringify(next))
-      setYoutubeAssets(next)
+      setYoutubeAssets(await resolveStudioAssetUrls(next))
       setYoutubeStudioOpen(true)
       setStatus(additions.length + " asset(s) saved to YouTube Studio.")
     } catch { setStatus("Could not save assets to YouTube Studio in this browser.") }
@@ -696,7 +749,7 @@ export default function CosmosStudio() {
       if (data.done && data.videoUri) {
         const url = "/api/assets?action=video-download&operation=" + encodeURIComponent(operation)
         setAssetOutputs((current) => current.map((item) => item.index === index ? { ...item, url } : item))
-        saveUrl(url, "cosmos-" + assetType + "-" + index + ".mp4")
+        saveToYoutubeStudio([{ index, url, type: assetType }])
         return
       }
       await new Promise((resolve) => setTimeout(resolve, 5000))
@@ -734,36 +787,40 @@ export default function CosmosStudio() {
           if (item.error) return { index: item.index, url: "", error: item.error }
           if (item.kind === "image") {
             const url = "data:" + (item.mimeType || "image/jpeg") + ";base64," + item.data
-            saveUrl(url, "cosmos-" + assetType + "-" + item.index + ".jpg")
             return { index: item.index, url }
           }
           return { index: item.index, url: "", operation: item.operation }
         })
         setAssetOutputs(initial)
+        const readyImages = initial.filter((item: any) => item.url).map((item: any) => ({ index: item.index, url: item.url, type: assetType }))
+        if (readyImages.length) saveToYoutubeStudio(readyImages)
         setAssetText(
           assetType === "video"
-            ? "Video batch started. Each completed video will be checked automatically and saved to your device."
-            : data.count + " different " + assetType + "s generated from the same fixed prompt and saved to your device."
+            ? "Video batch started. Completed videos will be added to YouTube Studio automatically."
+            : data.count + " different " + assetType + "s generated and added to YouTube Studio."
         )
         if (assetType === "video") {
           await Promise.all(
             initial.filter((item: any) => item.operation).map((item: any) => waitForVideo(item.operation, item.index))
           )
-          setAssetText("All completed videos have been automatically saved to your device.")
+          setAssetText("All completed videos are available in YouTube Studio.")
         }
       } else if (data.kind === "image") {
         const url = "data:" + (data.mimeType || "image/jpeg") + ";base64," + data.data
         setAssetOutput(url)
-        saveUrl(url, "cosmos-" + assetType + "-1.jpg")
-        setAssetText("Generated and automatically saved.")
+        saveToYoutubeStudio([{ index: 1, url, type: assetType }])
+        setAssetText("Generated and saved to YouTube Studio.")
       } else if (data.kind === "video") {
         setAssetOperation(data.operation || "")
-        setAssetText("Video generation started. It will be checked automatically and saved when ready.")
+        setAssetText("Video generation started. It will be added to YouTube Studio when ready.")
         await waitForVideo(data.operation || "", 1)
         setAssetOutput("/api/assets?action=video-download&operation=" + encodeURIComponent(data.operation || ""))
-        setAssetText("Video is ready and automatically saved to your device.")
+        setAssetText("Video is ready and saved to YouTube Studio.")
       } else if (data.kind === "motion") {
-        setAssetOutput("data:image/svg+xml;charset=utf-8," + encodeURIComponent(data.svg || ""))
+        const url = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(data.svg || "")
+        setAssetOutput(url)
+        saveToYoutubeStudio([{ index: 1, url, type: "motion" }])
+        setAssetText("Motion graphic generated and saved to YouTube Studio.")
       } else if (data.kind === "seo") {
         setAssetOutput(data.text || "")
       }
@@ -791,10 +848,8 @@ export default function CosmosStudio() {
 
   function selectAsset() {
     setAssetSelected(true)
-    const items = assetOutputs.length
-      ? assetOutputs.map((item) => ({ index: item.index, url: item.url, type: assetType }))
-      : assetOutput ? [{ index: 1, url: assetOutput, type: assetType }] : []
-    if (items.length) saveToYoutubeStudio(items)
+    const hasAsset = assetOutputs.some((item) => item.url) || Boolean(assetOutput)
+    if (hasAsset) setStatus("This asset is already saved in YouTube Studio.")
     else setStatus("Generate an asset first, then click Select.")
   }
 
