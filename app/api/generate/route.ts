@@ -131,13 +131,14 @@ export async function POST(request: Request) {
 
       // Preserve the proven Gemini TTS engine: explicit TTS models first,
       // then any TTS-capable Gemini models returned by the model list.
-      const available = await models(key)
-      const voiceModels = ["gemini-2.5-flash-preview-tts", "gemini-2.5-flash-tts", ...available.filter((model: string) => model.includes("tts"))]
+      for (const voiceKey of keys) {
+        const available = await models(voiceKey)
+        const voiceModels = ["gemini-2.5-flash-preview-tts", "gemini-2.5-pro-preview-tts", ...available.filter((model: string) => model.includes("tts"))]
 
-      for (const model of [...new Set(voiceModels)]) {
-        try {
-          const r = await fetch(
-            "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent?key=" + encodeURIComponent(key),
+        for (const model of [...new Set(voiceModels)]) {
+          try {
+            const r = await fetch(
+              "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent?key=" + encodeURIComponent(voiceKey),
             {
               method: "POST",
               headers: { "Content-Type": "application/json" },
