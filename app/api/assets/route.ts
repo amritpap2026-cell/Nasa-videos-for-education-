@@ -3,7 +3,6 @@ import { NextResponse } from "next/server"
 export const maxDuration = 300
 
 const IMAGE_MODELS = [
-  "gemini-3.1-flash-image",
   "gemini-2.5-flash-image",
   "gemini-3-pro-image",
 ]
@@ -81,34 +80,63 @@ async function withGeminiRotation<T>(operation: (apiKey: string, keyIndex: numbe
 }
 
 async function textGenerateWithKey(apiKey: string, prompt: string) {
-  let lastError = "Gemini generation failed."
-  for (const model of ["gemini-3.1-flash"]) {
-    const r = await fetch(
-      "https://generativelanguage.googleapis.com/v1beta/models/" +
-        encodeURIComponent(model) +
-        ":generateContent?key=" + encodeURIComponent(apiKey),
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.7, maxOutputTokens: 5000 },
-        }),
-        signal: AbortSignal.timeout(60000),
-      }
+  let lastError = "Gemini text generation failed."
+  const preferred = ["gemini-3.8-flash", "gemini-3.7-flash", "gemini-2.5-flash-lite", "gemini-2.5-flash"]
+  let models: string[] = []
+  try {
+    const listResponse = await fetch(
+      "https://generativelanguage.googleapis.com/v1beta/models?key=" + encodeURIComponent(apiKey),
+      { cache: "no-store", signal: AbortSignal.timeout(15000) }
     )
-    if (!r.ok) {
-      lastError = await providerError(r)
-      continue
+    if (listResponse.ok) {
+      const list = await listResponse.json().catch(() => ({}))
+      const available = Array.isArray(list?.models)
+        ? list.models
+            .filter((m: any) => m.name?.startsWith("models/") && m.supportedGenerationMethods?.includes("generateContent"))
+            .map((m: any) => String(m.name).split("models/").pop() || String(m.name))
+        : []
+      models = [
+        ...preferred.filter((name) => available.includes(name)),
+        ...available.filter((name: string) => !preferred.includes(name) && /^gemini-/.test(name) && !/image|audio|tts|embedding|live|transcribe/i.test(name)),
+      ]
+    } else {
+      lastError = await providerError(listResponse)
     }
-    const d = await r.json().catch(() => ({}))
-    const text = d?.candidates?.[0]?.content?.parts?.find((p: any) => typeof p?.text === "string")?.text
-    if (text) return text.trim()
-    lastError = "Gemini returned no text."
+  } catch (e) {
+    lastError = e instanceof Error ? e.message : "Could not list Gemini models."
+  }
+  if (!models.length) models = preferred
+
+  for (const model of models) {
+    try {
+      const r = await fetch(
+        "https://generativelanguage.googleapis.com/v1beta/models/" +
+          encodeURIComponent(model) +
+          ":generateContent?key=" + encodeURIComponent(apiKey),
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: { temperature: 0.7, maxOutputTokens: 5000 },
+          }),
+          signal: AbortSignal.timeout(60000),
+        }
+      )
+      if (!r.ok) {
+        lastError = await providerError(r)
+        continue
+      }
+      const d = await r.json().catch(() => ({}))
+      const text = d?.candidates?.[0]?.content?.parts?.find((p: any) => typeof p?.text === "string")?.text
+      if (text) return text.trim()
+      lastError = "Gemini returned no text."
+    } catch (e) {
+      lastError = e instanceof Error ? e.message : "Gemini text generation failed."
+    }
   }
   throw new Error(lastError)
 }
-
 async function textGenerate(prompt: string) {
   return withGeminiRotation((apiKey) => textGenerateWithKey(apiKey, prompt))
 }
