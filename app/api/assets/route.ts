@@ -7,8 +7,8 @@ const IMAGE_MODELS = [
   "gemini-3-pro-image",
 ]
 const VIDEO_MODELS = [
-  "gemini-omni-1.1-flash",
   "veo-3.1-generate-preview",
+  "veo-3.1-fast-generate-preview",
 ]
 const CLOUDFLARE_IMAGE_MODELS = [
   "@cf/stabilityai/stable-diffusion-xl-base-1.0",
