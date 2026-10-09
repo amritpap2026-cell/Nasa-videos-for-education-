@@ -156,12 +156,13 @@ export async function POST(request: Request) {
           const d = await r.json()
           const audio = d?.candidates?.[0]?.content?.parts?.find((p: any) => p.inlineData?.data)?.inlineData
           if (audio?.data) return NextResponse.json({ audio: audio.data, mimeType: audio.mimeType || "audio/wav", model })
-        } catch {
-          // Try the next available Gemini TTS model.
+          } catch {
+            // Try the next available Gemini TTS model with this key.
+          }
         }
       }
 
-      return NextResponse.json({ error: "No Gemini TTS model is currently available. Please retry; your storytelling script was preserved." }, { status: 503 })
+      return NextResponse.json({ error: "No Gemini TTS model is currently available with the configured keys. Please retry; your storytelling script was preserved." }, { status: 503 })
     }
     if (mode === "brainstorm") {
       const signals = await researchSignals(topic); const result = keys.length ? await generateWithRotation(keys, "Create 8 accurate curiosity-driven YouTube topics for a general audience from this seed: " + topic + ". Current signals: " + JSON.stringify(signals), 900, 0.9) : null
