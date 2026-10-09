@@ -3,6 +3,19 @@ import { NextResponse } from "next/server"
 export const maxDuration = 300
 
 const preferredModels = ["gemini-2.5-flash-lite", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
+
+function geminiKeys() {
+  const values = [
+    process.env.GEMINI_API_KEY,
+    process.env.GEMINI_API_KEY_1,
+    process.env.GEMINI_API_KEY_2,
+    process.env.GEMINI_API_KEY_3,
+    process.env.GEMINI_API_KEY_4,
+    process.env.GEMINI_API_KEY_5,
+    process.env.GOOGLE_GENERATIVE_AI_API_KEY,
+  ]
+  return values.map((v) => (v || "").trim()).filter((v, i, a) => v && a.indexOf(v) === i)
+}
 const masterPromptBranch = process.env.VERCEL_GIT_COMMIT_REF || "main"
 const masterPromptUrl = "https://raw.githubusercontent.com/amritpap2026-cell/Nasa-videos-for-education-/" + encodeURI(masterPromptBranch) + "/universal_youtube_master_prompt.txt"
 
@@ -28,6 +41,16 @@ async function generate(key: string, prompt: string, maxOutputTokens = 12000, te
       const d = await r.json(); const text = d?.candidates?.[0]?.content?.parts?.[0]?.text
       if (typeof text === "string" && text.trim()) return { text, model }
     } catch {}
+  }
+  return null
+}
+
+async function generateWithRotation(keys: string[], prompt: string, maxOutputTokens = 12000, temperature = 0.65) {
+  const errors: string[] = []
+  for (const key of keys) {
+    const result = await generate(key, prompt, maxOutputTokens, temperature)
+    if (result) return result
+    errors.push("A configured Gemini key could not complete generation")
   }
   return null
 }
@@ -96,7 +119,7 @@ export async function POST(request: Request) {
   try {
     const b = await request.json(); const topic = typeof b?.topic === "string" ? b.topic.trim() : ""
     const language = ["English", "Hindi", "Nepali"].includes(b?.language) ? b.language : "English"
-    const mode = typeof b?.mode === "string" ? b.mode : "master"; const key = (process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY || "").trim()
+    const mode = typeof b?.mode === "string" ? b.mode : "master"; const keys = geminiKeys(); const key = keys[0] || ""
     if (mode !== "voiceover" && topic.length < 3) return NextResponse.json({ error: "Please enter a topic with at least 3 characters." }, { status: 400 })
     if (mode === "voiceover") {
       if (!key) return NextResponse.json({ error: "GEMINI_API_KEY is not configured for voiceover." }, { status: 503 })
@@ -108,13 +131,14 @@ export async function POST(request: Request) {
 
       // Preserve the proven Gemini TTS engine: explicit TTS models first,
       // then any TTS-capable Gemini models returned by the model list.
-      const available = await models(key)
-      const voiceModels = ["gemini-2.5-flash-preview-tts", "gemini-2.5-flash-tts", ...available.filter((model: string) => model.includes("tts"))]
+      for (const voiceKey of keys) {
+        const available = await models(voiceKey)
+        const voiceModels = ["gemini-2.5-flash-preview-tts", "gemini-2.5-pro-preview-tts", ...available.filter((model: string) => model.includes("tts"))]
 
-      for (const model of [...new Set(voiceModels)]) {
-        try {
-          const r = await fetch(
-            "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent?key=" + encodeURIComponent(key),
+        for (const model of [...new Set(voiceModels)]) {
+          try {
+            const r = await fetch(
+              "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent?key=" + encodeURIComponent(voiceKey),
             {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -132,15 +156,16 @@ export async function POST(request: Request) {
           const d = await r.json()
           const audio = d?.candidates?.[0]?.content?.parts?.find((p: any) => p.inlineData?.data)?.inlineData
           if (audio?.data) return NextResponse.json({ audio: audio.data, mimeType: audio.mimeType || "audio/wav", model })
-        } catch {
-          // Try the next available Gemini TTS model.
+          } catch {
+            // Try the next available Gemini TTS model with this key.
+          }
         }
       }
 
-      return NextResponse.json({ error: "No Gemini TTS model is currently available. Please retry; your storytelling script was preserved." }, { status: 503 })
+      return NextResponse.json({ error: "No Gemini TTS model is currently available with the configured keys. Please retry; your storytelling script was preserved." }, { status: 503 })
     }
     if (mode === "brainstorm") {
-      const signals = await researchSignals(topic); const result = key ? await generate(key, "Create 8 accurate curiosity-driven YouTube topics for a general audience from this seed: " + topic + ". Current signals: " + JSON.stringify(signals), 900, 0.9) : null
+      const signals = await researchSignals(topic); const result = keys.length ? await generateWithRotation(keys, "Create 8 accurate curiosity-driven YouTube topics for a general audience from this seed: " + topic + ". Current signals: " + JSON.stringify(signals), 900, 0.9) : null
       const topics = result?.text.split("\n").map((x: string) => x.replace(/^\\s*\\d+[.)-]\\s*/, "").trim()).filter((x: string) => x.length > 5).slice(0, 8) || ["Why " + topic + " matters", "What is really happening with " + topic, "The story behind " + topic, topic + " explained"]
       return NextResponse.json({ topics, model: result?.model || "fallback" })
     }
@@ -153,7 +178,7 @@ export async function POST(request: Request) {
       const p = mode === "seo"
         ? "Create the final SEO + tags workspace output for this exact generated video. Include 20 accurate title options, primary/secondary/long-tail keywords, tags, a complete description, chapters based on the package timeline, and a pinned comment. Do not invent facts. " + modeContext + ". Topic: " + topic + ". " + lang(language) + packageContext
         : "Create the final " + type + " workspace output for this exact generated video. Read the generated package first and derive assets from its actual scenes, story angle, production manifest and timeline. Do not make generic assets from the topic alone. Include specific subject, environment, composition, framing, lighting, camera/motion, continuity, factual/physical accuracy, 16:9 suitability and negative constraints. For thumbnails include 0-4 word text and strong contrast. " + modeContext + ". Topic: " + topic + ". " + lang(language) + packageContext
-      const result = key ? await generate(key, p, 5000, 0.72) : null
+      const result = keys.length ? await generateWithRotation(keys, p, 5000, 0.72) : null
       return NextResponse.json(result || { text: type + "\nCreate production-ready assets for " + topic + ".", model: "fallback" })
     }
     const minutes = mins(b.length)
@@ -205,7 +230,7 @@ export async function POST(request: Request) {
     }
 
     if (!key) return NextResponse.json({ error: "GEMINI_API_KEY is not configured. Add it in the deployment environment before generating a YouTube package." }, { status: 503 })
-    const result = await generate(key, prompt, Math.min(30000, Math.max(9000, minutes * 125 * 2)), mode === "scriptwriter" ? 0.78 : 0.58)
+    const result = await generateWithRotation(keys, prompt, Math.min(30000, Math.max(9000, minutes * 125 * 2)), mode === "scriptwriter" ? 0.78 : 0.58)
     if (!result) return NextResponse.json({ error: "No Gemini text model was available. Please retry or check the Gemini API key and model access." }, { status: 503 })
     return NextResponse.json({ ...result, pipeline: "researcher.py -> scriptwriter.py -> " + (mode === "master" ? "master prompt" : "scriptwriter production engine") })
   } catch { return NextResponse.json({ error: "Invalid request. Please try again." }, { status: 400 }) }
