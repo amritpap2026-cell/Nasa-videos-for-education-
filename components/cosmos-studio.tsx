@@ -696,7 +696,7 @@ export default function CosmosStudio() {
       if (data.done && data.videoUri) {
         const url = "/api/assets?action=video-download&operation=" + encodeURIComponent(operation)
         setAssetOutputs((current) => current.map((item) => item.index === index ? { ...item, url } : item))
-        saveUrl(url, "cosmos-" + assetType + "-" + index + ".mp4")
+        saveToYoutubeStudio([{ index, url, type: assetType }])
         return
       }
       await new Promise((resolve) => setTimeout(resolve, 5000))
@@ -734,36 +734,40 @@ export default function CosmosStudio() {
           if (item.error) return { index: item.index, url: "", error: item.error }
           if (item.kind === "image") {
             const url = "data:" + (item.mimeType || "image/jpeg") + ";base64," + item.data
-            saveUrl(url, "cosmos-" + assetType + "-" + item.index + ".jpg")
             return { index: item.index, url }
           }
           return { index: item.index, url: "", operation: item.operation }
         })
         setAssetOutputs(initial)
+        const readyImages = initial.filter((item: any) => item.url).map((item: any) => ({ index: item.index, url: item.url, type: assetType }))
+        if (readyImages.length) saveToYoutubeStudio(readyImages)
         setAssetText(
           assetType === "video"
-            ? "Video batch started. Each completed video will be checked automatically and saved to your device."
-            : data.count + " different " + assetType + "s generated from the same fixed prompt and saved to your device."
+            ? "Video batch started. Completed videos will be added to YouTube Studio automatically."
+            : data.count + " different " + assetType + "s generated and added to YouTube Studio."
         )
         if (assetType === "video") {
           await Promise.all(
             initial.filter((item: any) => item.operation).map((item: any) => waitForVideo(item.operation, item.index))
           )
-          setAssetText("All completed videos have been automatically saved to your device.")
+          setAssetText("All completed videos are available in YouTube Studio.")
         }
       } else if (data.kind === "image") {
         const url = "data:" + (data.mimeType || "image/jpeg") + ";base64," + data.data
         setAssetOutput(url)
-        saveUrl(url, "cosmos-" + assetType + "-1.jpg")
-        setAssetText("Generated and automatically saved.")
+        saveToYoutubeStudio([{ index: 1, url, type: assetType }])
+        setAssetText("Generated and saved to YouTube Studio.")
       } else if (data.kind === "video") {
         setAssetOperation(data.operation || "")
-        setAssetText("Video generation started. It will be checked automatically and saved when ready.")
+        setAssetText("Video generation started. It will be added to YouTube Studio when ready.")
         await waitForVideo(data.operation || "", 1)
         setAssetOutput("/api/assets?action=video-download&operation=" + encodeURIComponent(data.operation || ""))
-        setAssetText("Video is ready and automatically saved to your device.")
+        setAssetText("Video is ready and saved to YouTube Studio.")
       } else if (data.kind === "motion") {
-        setAssetOutput("data:image/svg+xml;charset=utf-8," + encodeURIComponent(data.svg || ""))
+        const url = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(data.svg || "")
+        setAssetOutput(url)
+        saveToYoutubeStudio([{ index: 1, url, type: "motion" }])
+        setAssetText("Motion graphic generated and saved to YouTube Studio.")
       } else if (data.kind === "seo") {
         setAssetOutput(data.text || "")
       }
@@ -791,10 +795,8 @@ export default function CosmosStudio() {
 
   function selectAsset() {
     setAssetSelected(true)
-    const items = assetOutputs.length
-      ? assetOutputs.map((item) => ({ index: item.index, url: item.url, type: assetType }))
-      : assetOutput ? [{ index: 1, url: assetOutput, type: assetType }] : []
-    if (items.length) saveToYoutubeStudio(items)
+    const hasAsset = assetOutputs.some((item) => item.url) || Boolean(assetOutput)
+    if (hasAsset) setStatus("This asset is already saved in YouTube Studio.")
     else setStatus("Generate an asset first, then click Select.")
   }
 
