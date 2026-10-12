@@ -103,7 +103,7 @@ export default function CosmosStudio() {
   const [voiceoverUsed, setVoiceoverUsed] = useState(false)
   const [storyText, setStoryText] = useState("")
   const [packageDone, setPackageDone] = useState(false)
-  const [generationMode, setGenerationMode] = useState<"master" | "scriptwriter">("master")
+  const [generationMode, setGenerationMode] = useState<"master" | "scriptwriter" | "shorts" | "classroom">("master")
   const [assetOpen, setAssetOpen] = useState(false)
   const [assetType, setAssetType] = useState<"image" | "video" | "thumbnail" | "seo" | "motion">("image")
   const [assetLoading, setAssetLoading] = useState(false)
@@ -468,7 +468,7 @@ export default function CosmosStudio() {
     }
   }
 
-  async function generate(mode: "master" | "scriptwriter") {
+  async function generate(mode: "master" | "scriptwriter" | "shorts" | "classroom") {
     setLoading(true)
     setStatus("")
     setResult(null)
@@ -476,7 +476,7 @@ export default function CosmosStudio() {
       const response = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ topic, language, length, mode }),
+        body: JSON.stringify({ topic, language, length, gradeLevel, mode }),
       })
       const data = await response.json()
       if (!response.ok) {
@@ -1106,17 +1106,31 @@ export default function CosmosStudio() {
                 </button>
                 <button type="button" onClick={() => setGenerationMode("scriptwriter")} style={{ textAlign: "left", padding: 14, borderRadius: 10, border: "2px solid #2563eb", background: generationMode === "scriptwriter" ? "#eff6ff" : "white" }}>
                   <strong>Generate via scriptwriter</strong>
-                  <span style={{ display: "block", fontSize: 12, opacity: 0.72 }}>Research + creative documentary writing for any topic and runtime</span>
+                  <span style={{ display: "block", fontSize: 12, opacity: 0.72 }}>Research + flexible storytelling package</span>
+                </button>
+                <button type="button" onClick={() => setGenerationMode("shorts")} style={{ textAlign: "left", padding: 14, borderRadius: 10, border: "2px solid #7c3aed", background: generationMode === "shorts" ? "#f5f3ff" : "white" }}>
+                  <strong>Generate Shorts package</strong>
+                  <span style={{ display: "block", fontSize: 12, opacity: 0.72 }}>Vertical 9:16 short-form script and assets</span>
+                </button>
+                <button type="button" onClick={() => setGenerationMode("classroom")} style={{ textAlign: "left", padding: 14, borderRadius: 10, border: "2px solid #0f766e", background: generationMode === "classroom" ? "#f0fdfa" : "white" }}>
+                  <strong>Generate Classroom package</strong>
+                  <span style={{ display: "block", fontSize: 12, opacity: 0.72 }}>Lesson plan, explanations, checks and teaching visuals</span>
                 </button>
               </div>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 10 }}>
               <button className="generate" onClick={() => generate("master")} disabled={loading || topic.trim().length < 3}>
-                {loading && generationMode === "master" ? "Generating..." : "Generate with master prompt"}
+                {loading && generationMode === "master" ? "Generating..." : "Generate Master Prompt"}
               </button>
               <button className="generate" onClick={() => generate("scriptwriter")} disabled={loading || topic.trim().length < 3}>
-                {loading && generationMode === "scriptwriter" ? "Generating..." : "Generate via scriptwriter"}
+                {loading && generationMode === "scriptwriter" ? "Generating..." : "Generate Scriptwriter"}
+              </button>
+              <button className="generate" onClick={() => generate("shorts")} disabled={loading || topic.trim().length < 3}>
+                {loading && generationMode === "shorts" ? "Generating..." : "Generate Shorts"}
+              </button>
+              <button className="generate" onClick={() => generate("classroom")} disabled={loading || topic.trim().length < 3}>
+                {loading && generationMode === "classroom" ? "Generating..." : "Generate Classroom"}
               </button>
             </div>
 

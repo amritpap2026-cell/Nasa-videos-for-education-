@@ -100,6 +100,15 @@ async function callPythonPipeline(request: Request, topic: string, language: str
   return data;
 }
 
+async function loadPromptFile(filename: string) {
+  try {
+    const url = "https://raw.githubusercontent.com/amritpap2026-cell/Nasa-videos-for-education-/" + encodeURI(masterPromptBranch) + "/" + filename
+    const r = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(10000) })
+    return r.ok ? await r.text() : ""
+  } catch {
+    return ""
+  }
+}
 async function masterPrompt() {
   try {
     const r = await fetch(masterPromptUrl, { cache: "no-store", signal: AbortSignal.timeout(10000) })
@@ -181,7 +190,7 @@ export async function POST(request: Request) {
       const result = keys.length ? await generateWithRotation(keys, p, 5000, 0.72) : null
       return NextResponse.json(result || { text: type + "\nCreate production-ready assets for " + topic + ".", model: "fallback" })
     }
-    const minutes = mins(b.length)
+    const minutes = mode === "shorts" ? 1 : mins(b.length)
     let pipeline: any
     try {
       // Both generation buttons MUST pass through the real Python agents first.
@@ -213,6 +222,22 @@ export async function POST(request: Request) {
         "Return the complete package, not an outline or summary. " +
         lang(language) + "\n\nRESEARCH DOSSIER FROM researcher.py:\n" + research +
         "\n\nCREATIVE SCRIPT DRAFT FROM scriptwriter.py:\n" + scriptDraft
+    } else if (mode === "shorts" || mode === "classroom") {
+      const filename = mode === "shorts" ? "universal_shorts_master_prompt.txt" : "universal_classroom_lesson_master_prompt.txt"
+      const packagePrompt = await loadPromptFile(filename)
+      if (!packagePrompt) return NextResponse.json({ error: filename + " could not be loaded from the deployed Git branch. Please retry after the deployment is ready." }, { status: 503 })
+      prompt = "Use the attached package-specific master prompt as the authoritative protocol. This is an INDIVIDUAL " +
+        (mode === "shorts" ? "YOUTUBE SHORTS" : "CLASSROOM LESSON") + " package, not a standard long-form YouTube package. " +
+        "The Python researcher.py and scriptwriter.py have ALREADY run successfully. Use their research dossier and scriptwriter draft; do not skip or discard the pipeline. " +
+        "Follow every applicable section of this package prompt. Return a complete, usable package, not a summary. " +
+        "Always include the exact stable application headers FULL WORD-FOR-WORD SCRIPT (STORYTELLING SCRIPT), COMPLETE TIMESTAMPED STORYBOARD / FINAL TIMELINE, AI IMAGE GENERATION PROMPTS, AI VIDEO GENERATION PROMPTS, REAL / ARCHIVAL / STOCK FOOTAGE PLAN, MOTION GRAPHICS + DATA VISUALIZATION, ON-SCREEN TEXT + SUBTITLES, VOICEOVER DIRECTION, MUSIC + SOUND DESIGN, TITLE + SEO PACKAGE, DESCRIPTION + CHAPTERS + PINNED COMMENT, THUMBNAIL CONCEPTS, and FINAL COMPLETION AUDIT. " +
+        "For Shorts, create a tight 30-60 second narration and optimize every scene for vertical 9:16 short-form video; do not generate a long-form script. " +
+        "For Classroom, teach the requested subject to the selected audience/grade level with learning objectives, explanations, examples, checks for understanding and factual sources. " +
+        "Keep narration only between <<<STORYTELLING_SCRIPT_START>>> and <<<STORYTELLING_SCRIPT_END>>> under the exact script header. Never invent facts, sources, quotes or statistics. " +
+        lang(language) + "\n\nAUDIENCE / GRADE LEVEL: " + String(b?.gradeLevel || "General public") +
+        "\n\nRESEARCH DOSSIER FROM researcher.py:\n" + research +
+        "\n\nSCRIPTWRITER DRAFT FROM scriptwriter.py:\n" + scriptDraft +
+        "\n\nPACKAGE-SPECIFIC MASTER PROMPT:\n" + packagePrompt
     } else {
       const master = await masterPrompt()
       if (!master) return NextResponse.json({ error: "The universal_youtube_master_prompt.txt could not be loaded. Please retry after the deployment is ready." }, { status: 503 })
@@ -232,6 +257,6 @@ export async function POST(request: Request) {
     if (!key) return NextResponse.json({ error: "GEMINI_API_KEY is not configured. Add it in the deployment environment before generating a YouTube package." }, { status: 503 })
     const result = await generateWithRotation(keys, prompt, Math.min(30000, Math.max(9000, minutes * 125 * 2)), mode === "scriptwriter" ? 0.78 : 0.58)
     if (!result) return NextResponse.json({ error: "No Gemini text model was available. Please retry or check the Gemini API key and model access." }, { status: 503 })
-    return NextResponse.json({ ...result, pipeline: "researcher.py -> scriptwriter.py -> " + (mode === "master" ? "master prompt" : "scriptwriter production engine") })
+    return NextResponse.json({ ...result, pipeline: "researcher.py -> scriptwriter.py -> " + (mode === "master" ? "master prompt" : mode === "shorts" ? "Shorts package" : mode === "classroom" ? "Classroom package" : "scriptwriter production engine") })
   } catch { return NextResponse.json({ error: "Invalid request. Please try again." }, { status: 400 }) }
 }
